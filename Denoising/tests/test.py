@@ -9,7 +9,7 @@ def run_quality_report():
     report = {}
     
     # 1. Gather all audio files in the data directory
-    audio_extensions = (".mp3", ".opus")
+    audio_extensions = (".mp3", ".opus", ".wav")
     files = [f for f in os.listdir(data_dir) if f.lower().endswith(audio_extensions)]
     
     print(f"Starting processing for {len(files)} file(s)...")
