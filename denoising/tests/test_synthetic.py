@@ -8,6 +8,7 @@ from denoising.highpass_filter import highpass_filter
 from denoising.notch_filter import notch_filter
 from denoising.compressor import compress_dynamic_range
 from denoising.declipper import declip_audio
+from denoising.spectral_denoiser import wiener_denoise
 
 class TestDenoisingComponents(unittest.TestCase):
     def setUp(self):
@@ -141,6 +142,36 @@ class TestDenoisingComponents(unittest.TestCase):
         # Declipped wave peaks should be restored to exceed 0.99
         self.assertGreater(np.max(declipped), 0.99)
         self.assertLess(np.min(declipped), -0.99)
+
+    def test_spectral_denoiser_reduction(self):
+        # First 0.5s is silence (only noise), next 1.5s is sine wave (signal) + noise
+        noise_std = 0.05
+        noise = noise_std * np.random.randn(len(self.t))
+        
+        signal = np.zeros_like(self.t)
+        signal[int(0.5 * self.sr):] = 0.5 * np.sin(2 * np.pi * 440 * self.t[int(0.5 * self.sr):])
+        
+        noisy_audio = signal + noise
+        
+        denoised = wiener_denoise(noisy_audio, self.sr, noise_duration_s=0.5)
+        
+        # Calculate SNR before and after denoising on the active segment
+        active_noisy = noisy_audio[int(0.5 * self.sr):]
+        active_denoised = denoised[int(0.5 * self.sr):]
+        active_signal = signal[int(0.5 * self.sr):]
+        
+        noisy_noise = active_noisy - active_signal
+        denoised_noise = active_denoised - active_signal
+        
+        p_signal = np.mean(active_signal ** 2)
+        p_noisy_noise = np.mean(noisy_noise ** 2)
+        p_denoised_noise = np.mean(denoised_noise ** 2)
+        
+        snr_before = 10 * np.log10(p_signal / p_noisy_noise)
+        snr_after = 10 * np.log10(p_signal / p_denoised_noise)
+        
+        # Denoising should improve SNR by at least 3.0 dB
+        self.assertGreater(snr_after, snr_before + 3.0)
 
 if __name__ == '__main__':
     unittest.main()
