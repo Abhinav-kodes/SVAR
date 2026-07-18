@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import librosa
-from diarization.mfcc_extractor import extract_mfcc, pre_emphasis
+from diarization.mfcc_extractor import extract_mfcc
 from denoising.pipeline import DenoiserPipeline
 
 class TestMFCCExtractor(unittest.TestCase):
@@ -32,9 +32,9 @@ class TestMFCCExtractor(unittest.TestCase):
 
     def test_match_librosa(self):
         # Apply pre-emphasis manually to match librosa inputs
-        audio_pre = pre_emphasis(self.clean_signal, alpha=0.97)
+        audio_pre = librosa.effects.preemphasis(self.clean_signal, coef=0.97)
         
-        # Extract using our scratch implementation
+        # Extract using our implementation
         mfcc_scratch = extract_mfcc(self.clean_signal, self.sr, num_ceps=13, num_filters=26, alpha=0.97)
         
         # Extract using librosa
