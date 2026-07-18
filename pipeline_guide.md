@@ -102,8 +102,15 @@ PYTHONPATH=. venv/bin/python denoising/tests/benchmark.py
     *   `data/sample_calls/<filename>_denoised.wav` (fully enhanced and denoised audio).
     *   `data/sample_calls/benchmark_results.csv` (CSV summarizing metrics including SNR before/after, improvement delta, clipping, silence, AC hum removal status, and PASS/FAIL grade).
 
-### 6. Run All Automated Unit Tests
-To run the full suite of synthetic unit tests verifying notch filters, HPF, compressor, declipper, silence ratio, VAD, and Wiener denoiser:
+### 6. Run the MFCC Feature Extractor Tests
+To run the validation and shape tests for the custom Mel-Frequency Cepstral Coefficients (MFCC) feature extractor:
+```bash
+PYTHONPATH=. venv/bin/python diarization/tests/test_mfcc.py
+```
+*   This verifies that the custom MFCC extraction output matches `librosa`'s MFCC output within a tight numerical tolerance.
+
+### 7. Run All Automated Unit Tests
+To run the full suite of synthetic unit tests verifying all signal-level components (notch, HPF, compressor, declipper, silence ratio, VAD, Wiener denoiser):
 ```bash
 python -m unittest discover -s denoising/tests -p "test_synthetic.py"
 ```
