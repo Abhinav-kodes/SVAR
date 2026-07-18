@@ -155,24 +155,23 @@ call-analytics/
 
 ## Part 2 — Diarization + Baseline Profiling (Days 6–11)
 
-### Day 6 — MFCC Extractor From Scratch
+### Day 6 — MFCC Extractor Integration
 
-**Goal:** Implement the core feature extractor used throughout Parts 2 and 3
+**Goal:** Integrate the core feature extractor used throughout the diarization and sentiment modules.
 
 **Tasks:**
 - Validate output of MFCC extractor on enhanced audio — verify lower jitter/shimmer noise floor vs raw audio
-- Implement `mfcc_extractor.py` from scratch:
-  1. Pre-emphasis: `y[n] = x[n] - 0.97 * x[n-1]`
-  2. Frame into 25ms windows, 10ms stride
-  3. Hamming window per frame
-  4. FFT magnitude spectrum
-  5. Mel filterbank — 26 triangular filters, 0–8kHz
-  6. Log energy per filter
-  7. DCT → 13 MFCCs
-- Validate output against `librosa.feature.mfcc()` on same file — should match within tolerance
+- Implement `mfcc_extractor.py` leveraging standard libraries (such as `librosa`):
+  1. Pre-emphasis filtering
+  2. Overlapping frame extraction
+  3. Windowing (e.g. Hamming)
+  4. Mel filterbank conversion (Slaney normalization)
+  5. Log energy calculation
+  6. DCT-II mapping to 13 MFCC coefficients
+- Validate output against standard `librosa.feature.mfcc()` and ensure alignment
 - Unit test confirming output shape `(n_frames, 13)`
 
-**Deliverable:** Validated MFCC extractor matching librosa output
+**Deliverable:** Validated MFCC extractor matching standard librosa output
 
 ---
 
@@ -222,7 +221,7 @@ call-analytics/
 - Implement `speaker_assigner.py`:
   - First segment = Speaker 1 baseline, first clearly different-sounding = Speaker 2 baseline
   - Per new segment: cosine similarity to both baselines → assign to closest
-  - `cosine_similarity(a, b)` from scratch via numpy dot product
+  - `cosine_similarity(a, b)` using standard numpy vector operations
   - "Uncertain" flag when similarity difference < 0.05
 - Implement `baseline_builder.py`:
   - Store baseline fingerprint per speaker
@@ -240,14 +239,12 @@ call-analytics/
 
 **Tasks:**
 - Implement `lpc_formant_estimator.py`:
-  - Levinson-Durbin recursion from scratch (numpy only) — the hardest algorithm in the project
-  - Find roots of LPC polynomial
+  - Linear Predictive Coding (LPC) using library tools (e.g. `librosa.lpc`)
+  - Find roots of LPC polynomial using standard solver (`numpy.roots`)
   - Roots near unit circle in upper half-plane → formant frequencies
   - Return F1, F2 (first two formants in Hz)
 - Integrate into speaker fingerprinter
 - Re-test diarization accuracy on 5 calls with improved fingerprint
-
-**Note:** Budget an extra hour today. Levinson-Durbin is well-documented but fiddly to implement. Reference: Makhoul (1975) "Linear Prediction: A Tutorial Review."
 
 **Deliverable:** Improved fingerprinter with formant features, re-tested on 5 calls
 
@@ -679,13 +676,13 @@ services:
 
 ## Summary
 
-| Part | Days | Hardest Day | Key Scratch Components |
+| Part | Days | Hardest Day | Key Components |
 |---|---|---|---|
-| Part 1 — Denoising + Enhancement | 1–5 | Day 4 (Wiener filter) | SNR calculator, NOTCH filter, high-pass, compressor, Wiener denoiser, VAD |
-| Part 2 — Diarization | 6–11 | Day 10 (LPC Levinson-Durbin) | MFCC, formants, cosine fingerprinter |
-| Part 3 — Sentiment | 12–19 | Day 16 (MuRIL training) | EmoInHindi preprocessing, V-A classifier, Levenshtein |
+| Denoising + Enhancement | 1–5 | Day 4 (Wiener filter) | SNR calculator, NOTCH filter, high-pass, compressor, Wiener denoiser, VAD |
+| Diarization | 6–11 | Day 10 (Formants) | MFCC, formants, cosine fingerprinter |
+| Sentiment | 12–19 | Day 16 (MuRIL training) | EmoInHindi preprocessing, V-A classifier, Levenshtein |
 | Integration | 20–25 | Day 21 (queue architecture) | FastAPI, Celery, Docker Compose |
-| **Total** | **25 days** | | **22 of 26 components from scratch** |
+| **Total** | **25 days** | | **Custom integration of standard DSP & ML tools** |
 
 ---
 
