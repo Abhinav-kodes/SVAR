@@ -92,7 +92,17 @@ python -m denoising.spectral_denoiser
 ```
 *   Performs STFT Wiener filtering on the default sample call and prints out original and denoised shapes.
 
-### 5. Run All Automated Unit Tests
+### 5. Run the Integrated Denoiser Pipeline & Benchmark
+To run the full integrated pipeline on all raw audio files, generate enhanced WAV outputs, and export a consolidated benchmark CSV report:
+```bash
+PYTHONPATH=. venv/bin/python denoising/tests/benchmark.py
+```
+*   **Inputs read from:** `data/sample_calls/` (skips any `_denoised` files).
+*   **Outputs generated:**
+    *   `data/sample_calls/<filename>_denoised.wav` (fully enhanced and denoised audio).
+    *   `data/sample_calls/benchmark_results.csv` (CSV summarizing metrics including SNR before/after, improvement delta, clipping, silence, AC hum removal status, and PASS/FAIL grade).
+
+### 6. Run All Automated Unit Tests
 To run the full suite of synthetic unit tests verifying notch filters, HPF, compressor, declipper, silence ratio, VAD, and Wiener denoiser:
 ```bash
 python -m unittest discover -s denoising/tests -p "test_synthetic.py"
