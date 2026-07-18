@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from Denoising.vad_basic import compute_vad
+from denoising.vad_basic import compute_vad
 
 def plot_speech_timeline(audio: np.ndarray, sr: int, filepath: str = "speech_timeline_plot.png", frame_duration_ms: int = 25):
     """

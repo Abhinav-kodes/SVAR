@@ -1,12 +1,12 @@
 import os
 import json
-from Denoising.audio_loader import load_audio
-from Denoising.clipping_detector import detect_clipping
-from Denoising.snr_calculator import calculate_snr
-from Denoising.silence_ratio import calculate_silence_ratio
-from Denoising.visualize_timeline import plot_speech_timeline
+from denoising.audio_loader import load_audio
+from denoising.clipping_detector import detect_clipping
+from denoising.snr_calculator import calculate_snr
+from denoising.silence_ratio import calculate_silence_ratio
+from denoising.visualize_timeline import plot_speech_timeline
 def run_quality_report():
-    data_dir = "data"
+    data_dir = "data/sample_calls"
     report = {}
     
     # 1. Gather all audio files in the data directory

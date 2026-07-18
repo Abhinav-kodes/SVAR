@@ -1,5 +1,5 @@
 import numpy as np
-from Denoising.vad_basic import compute_vad
+from denoising.vad_basic import compute_vad
 
 def calculate_silence_ratio(audio: np.ndarray, sr: int, frame_duration_ms: int = 25, threshold_multiplier: float = 1.5) -> float:
     """

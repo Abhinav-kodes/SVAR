@@ -70,7 +70,7 @@ def plot_first_half_second(audio: np.ndarray, sr: int) -> None:
     plt.show()
 
 if __name__ == "__main__":
-    data, sr = load_audio("data/sample_audio_2.opus")
+    data, sr = load_audio("data/sample_calls/sample_audio_2.opus")
 
     noise_power = estimate_noise_power(data, sr)
     snr_db = estimate_snr(data, noise_power)
