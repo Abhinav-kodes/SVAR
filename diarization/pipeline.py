@@ -2,16 +2,19 @@ import numpy as np
 from typing import List, Dict, Any, Optional
 from diarization.pause_segmenter import segment_audio_by_pauses
 from diarization.speaker_assigner import SpeakerAssigner
+from diarization.deep_speaker_fingerprinter import DeepSpeakerFingerprinter
 
 
 class DiarizationPipeline:
     """
     Master pipeline orchestrating audio pause segmentation and speaker role assignment.
+    Supports ECAPA-TDNN deep neural speaker embeddings with classical fallback.
     """
     def __init__(
         self,
-        min_pause_duration_s: float = 0.4,
+        min_pause_duration_s: float = 0.6,
         min_segment_duration_s: float = 0.5,
+        use_deep_embeddings: bool = True,
         similarity_threshold_delta: float = 0.05,
         new_speaker_threshold: float = 0.95,
         alpha: float = 0.1
@@ -20,17 +23,22 @@ class DiarizationPipeline:
         Args:
             min_pause_duration_s: Minimum pause duration in seconds to trigger segment boundary.
             min_segment_duration_s: Minimum duration for a valid speech segment.
-            similarity_threshold_delta: Confidence margin below which assignment is marked uncertain.
-            new_speaker_threshold: Similarity limit below which a new voice profile is initialized.
-            alpha: Learning rate parameter for EWA baseline updates.
+            use_deep_embeddings: Whether to use ECAPA-TDNN deep speaker embeddings (default: True).
+            similarity_threshold_delta: Deprecated (kept for backward compatibility).
+            new_speaker_threshold: Deprecated (kept for backward compatibility).
+            alpha: Deprecated (kept for backward compatibility).
         """
         self.min_pause_duration_s = min_pause_duration_s
         self.min_segment_duration_s = min_segment_duration_s
-        self.speaker_assigner = SpeakerAssigner(
-            similarity_threshold_delta=similarity_threshold_delta,
-            new_speaker_threshold=new_speaker_threshold,
-            alpha=alpha
-        )
+        self.use_deep_embeddings = use_deep_embeddings
+        self.similarity_threshold_delta = similarity_threshold_delta
+        self.new_speaker_threshold = new_speaker_threshold
+        self.alpha = alpha
+
+        if self.use_deep_embeddings:
+            self.fingerprinter = DeepSpeakerFingerprinter()
+        else:
+            self.fingerprinter = None
 
     def process(self, audio: np.ndarray, sr: int) -> Dict[str, Any]:
         """
@@ -41,10 +49,7 @@ class DiarizationPipeline:
             sr: Sample rate in Hz.
 
         Returns:
-            Dictionary containing:
-                - 'talk_ratio': dict with agent_duration_s, customer_duration_s, total_speech_s, agent_ratio, customer_ratio
-                - 'speakers': dict with agent and customer baseline info & segment counts
-                - 'segments': list of segment dictionaries with timestamps and role labels
+            Dictionary containing talk_ratio, speakers, and segments breakdown.
         """
         if len(audio) == 0 or sr <= 0:
             return {
@@ -70,14 +75,25 @@ class DiarizationPipeline:
             min_segment_duration_s=self.min_segment_duration_s
         )
 
-        # 2. Assign speaker roles
-        assigned_segments = self.speaker_assigner.assign_speakers(raw_segments, sr)
+        # 2. Assign speaker roles using SpeakerAssigner & fingerprinter
+        speaker_assigner = SpeakerAssigner(
+            similarity_threshold_delta=self.similarity_threshold_delta,
+            new_speaker_threshold=self.new_speaker_threshold,
+            alpha=self.alpha
+        )
+        assigned_segments = speaker_assigner.assign_speakers(
+            raw_segments,
+            sr,
+            fingerprinter=self.fingerprinter
+        )
 
         # 3. Calculate talk statistics
         agent_dur = 0.0
         customer_dur = 0.0
+        overlap_dur = 0.0
         agent_count = 0
         customer_count = 0
+        overlap_count = 0
 
         clean_segments = []
         for seg in assigned_segments:
@@ -87,11 +103,13 @@ class DiarizationPipeline:
             if speaker == "agent":
                 agent_dur += dur
                 agent_count += 1
-            else:
+            elif speaker == "customer":
                 customer_dur += dur
                 customer_count += 1
+            elif speaker == "overlap":
+                overlap_dur += dur
+                overlap_count += 1
 
-            # Prepare lightweight segment dict for reporting
             clean_segments.append({
                 "start_sample": seg["start_sample"],
                 "end_sample": seg["end_sample"],
@@ -103,17 +121,18 @@ class DiarizationPipeline:
                 "uncertain": seg["uncertain"]
             })
 
-        total_speech_s = agent_dur + customer_dur
+        total_speech_s = agent_dur + customer_dur  # overlap excluded from ratio
         agent_ratio = float(agent_dur / total_speech_s) if total_speech_s > 0 else 0.0
         customer_ratio = float(customer_dur / total_speech_s) if total_speech_s > 0 else 0.0
 
-        agent_fp = self.speaker_assigner.tracker.get_baseline("agent")
-        cust_fp = self.speaker_assigner.tracker.get_baseline("customer")
+        agent_fp = speaker_assigner.tracker.get_baseline("agent")
+        cust_fp = speaker_assigner.tracker.get_baseline("customer")
 
         return {
             "talk_ratio": {
                 "agent_duration_s": round(agent_dur, 2),
                 "customer_duration_s": round(customer_dur, 2),
+                "overlap_duration_s": round(overlap_dur, 2),
                 "total_speech_s": round(total_speech_s, 2),
                 "agent_ratio": round(agent_ratio, 4),
                 "customer_ratio": round(customer_ratio, 4)
@@ -128,6 +147,9 @@ class DiarizationPipeline:
                     "segment_count": customer_count,
                     "has_baseline": cust_fp is not None,
                     "baseline_vector": cust_fp.tolist() if cust_fp is not None else []
+                },
+                "overlap": {
+                    "segment_count": overlap_count,
                 }
             },
             "segments": clean_segments
