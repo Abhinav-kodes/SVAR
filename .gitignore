@@ -11,8 +11,10 @@ __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 
-# Data and Audio Assets (specifically ignoring the sample_calls directory containing large audio files and generated plots)
+# Data and Audio Assets
 data/sample_calls/
+data/emotions/
+sentiment/data/*.csv
 
 # Root level reports/metadata
 quality_report.json
