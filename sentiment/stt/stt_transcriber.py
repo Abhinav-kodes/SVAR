@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import scipy.signal
 from typing import List, Dict, Any, Optional
@@ -6,9 +7,19 @@ from typing import List, Dict, Any, Optional
 class SpeechToTextTranscriber:
     """
     Speech-to-Text (STT) transcriber using Whisper automatic speech recognition models.
+    Supports local Vaani Hindi Whisper model ('whisper-hindi') and online HuggingFace models.
     """
-    def __init__(self, model_name: str = "openai/whisper-base", device: Optional[str] = None):
-        self.model_name = model_name
+    def __init__(self, model_name: Optional[str] = None, device: Optional[str] = None):
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        local_model_path = os.path.join(repo_root, "whisper-hindi")
+
+        if model_name is not None:
+            self.model_name = model_name
+        elif os.path.exists(local_model_path):
+            self.model_name = local_model_path
+        else:
+            self.model_name = "ARTPARK-IISc/whisper-large-v3-vaani-hindi"
+
         self.pipeline = None
         self._initialized = False
 
@@ -22,7 +33,7 @@ class SpeechToTextTranscriber:
             from transformers import pipeline
 
             device_id = 0 if torch.cuda.is_available() else -1
-            print(f"Initializing Whisper STT model '{self.model_name}' on device {device_id}...")
+            print(f"Initializing Whisper STT model from '{self.model_name}' on device {device_id}...")
             self.pipeline = pipeline(
                 "automatic-speech-recognition",
                 model=self.model_name,

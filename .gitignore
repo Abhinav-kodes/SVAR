@@ -11,10 +11,11 @@ __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 
-# Data and Audio Assets
+# Data, Audio & Model Weights
 data/sample_calls/
 data/emotions/
 sentiment/data/*.csv
+whisper-hindi/
 
 # Root level reports/metadata
 quality_report.json
