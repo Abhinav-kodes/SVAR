@@ -24,7 +24,7 @@ class TestSpeakerAssigner(unittest.TestCase):
         seg2 = {"audio": 0.5 * np.sin(2 * np.pi * 450.0 * t)}
         seg3 = {"audio": 0.5 * np.sin(2 * np.pi * 122.0 * t)}
 
-        assigner = SpeakerAssigner(new_speaker_threshold=0.98)
+        assigner = SpeakerAssigner(new_speaker_threshold=0.99)
         assigned = assigner.assign_speakers([seg1, seg2, seg3], sr)
 
         self.assertEqual(len(assigned), 3)
