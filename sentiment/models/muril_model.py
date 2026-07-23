@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 from typing import Dict, Any, Optional
@@ -7,22 +8,32 @@ class MultiTaskMuRIL(nn.Module):
     """
     Multi-Task MuRIL transformer neural network for joint emotion classification,
     sentiment prediction, and emotion intensity regression.
+    Supports local model directory ('muril-base') and HuggingFace cache.
     """
     def __init__(
         self,
-        model_name: str = "google/muril-base-cased",
+        model_name: Optional[str] = None,
         num_emotions: int = 6,
         num_sentiments: int = 3,
         dropout_rate: float = 0.3
     ):
         super().__init__()
-        self.model_name = model_name
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        local_muril_path = os.path.join(repo_root, "muril-base")
+
+        if model_name is not None:
+            self.model_name = model_name
+        elif os.path.exists(local_muril_path):
+            self.model_name = local_muril_path
+        else:
+            self.model_name = "google/muril-base-cased"
+
         self.encoder = None
 
         try:
             from transformers import AutoModel
-            print(f"Loading base MuRIL encoder from '{model_name}'...")
-            self.encoder = AutoModel.from_pretrained(model_name)
+            print(f"Loading base MuRIL encoder from '{self.model_name}'...")
+            self.encoder = AutoModel.from_pretrained(self.model_name)
             hidden_size = self.encoder.config.hidden_size
         except Exception as e:
             print(f"MuRIL encoder load note: {e}. Operating in linear projection mode.")

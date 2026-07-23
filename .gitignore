@@ -14,11 +14,20 @@ __pycache__/
 # Data, Audio & Model Weights
 data/sample_calls/
 data/emotions/
+data/research_papers
 sentiment/data/*.csv
 whisper-hindi/
+muril-base/
+
 
 # Root level reports/metadata
 quality_report.json
+
+# Data files
+*.csv
+*.json
+*.npy
+*.joblib
 
 # IDE settings
 .vscode/

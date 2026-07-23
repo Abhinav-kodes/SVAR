@@ -17,7 +17,7 @@ class TestDiarizationPipeline(unittest.TestCase):
 
         full_audio = np.concatenate([audio1, silence, audio2])
 
-        pipeline = DiarizationPipeline(new_speaker_threshold=0.99)
+        pipeline = DiarizationPipeline()
         results = pipeline.process(full_audio, sr)
 
         self.assertIn("talk_ratio", results)
@@ -35,6 +35,9 @@ class TestDiarizationPipeline(unittest.TestCase):
 
         self.assertEqual(results["talk_ratio"]["total_speech_s"], 0.0)
         self.assertEqual(results["segments"], [])
+        self.assertEqual(results["confidence_method"], "none")
+        self.assertEqual(results["separability"], [])
+        self.assertEqual(results["low_separability_regions"], [])
 
 
 if __name__ == "__main__":

@@ -34,9 +34,18 @@ def parse_timestamp_to_seconds(ts_str: str) -> float:
 def load_ground_truth(csv_path: str) -> List[Dict[str, Any]]:
     gt_segments = []
     with open(csv_path, "r", encoding="utf-8") as f:
-        content = f.read()
+        lines = f.readlines()
 
-    for line in content.splitlines():
+    last_table_start = -1
+    for i, line in enumerate(lines):
+        if line.startswith("|") and "Timestamp" in line:
+            last_table_start = i
+
+    if last_table_start < 0:
+        return gt_segments
+
+    for line in lines[last_table_start:]:
+        line = line.strip()
         if not line.startswith("|") or "Timestamp" in line or "---" in line:
             continue
 
@@ -44,8 +53,8 @@ def load_ground_truth(csv_path: str) -> List[Dict[str, Any]]:
         if len(cols) < 2:
             continue
 
-        ts_range = cols[0]
-        speaker_raw = cols[1].lower()
+        ts_range = cols[0].replace("–", "-").replace("—", "-")
+        speaker_raw = cols[1].lower().replace("**", "")
 
         if "-" in ts_range:
             parts = ts_range.split("-")
@@ -59,10 +68,10 @@ def load_ground_truth(csv_path: str) -> List[Dict[str, Any]]:
 
             if "vicky" in speaker_raw and "kapil" in speaker_raw:
                 speaker = "overlap"
-            elif "vicky" in speaker_raw:
-                speaker = "agent"     # Vicky = Agent / Speaker 1
-            elif "kapil" in speaker_raw:
-                speaker = "customer"  # Kapil = Customer / Speaker 2
+            elif "agent" in speaker_raw or "vicky" in speaker_raw:
+                speaker = "agent"
+            elif "customer" in speaker_raw or "kapil" in speaker_raw:
+                speaker = "customer"
             else:
                 speaker = "unknown"
 
@@ -137,6 +146,43 @@ def evaluate_diarization(audio_path: str, gt_csv_path: str):
     print(f"Inverted Speaker Match Acc:     {acc_inverted:.2f}% (Agent=Kapil, Customer=Vicky)")
     print("-" * 65)
     print(f"Optimal Diarization Accuracy:   {best_acc:.2f}% ({'Inverted Alignment' if is_inverted else 'Direct Alignment'})")
+    print("-" * 65)
+
+    # Confidence analysis
+    correct_confs = []
+    incorrect_confs = []
+    for seg in pred_segments:
+        s_idx = int(math.floor(seg["start_time_s"]))
+        e_idx = min(n_seconds, int(math.ceil(seg["end_time_s"])))
+        seg_correct = all(
+            gt_timeline[i] == seg["speaker"]
+            or (gt_timeline[i] == "overlap" and seg["speaker"] in ["agent", "customer"])
+            for i in range(s_idx, e_idx)
+            if gt_timeline[i] != "silence"
+        )
+        active_seconds = [i for i in range(s_idx, e_idx) if gt_timeline[i] != "silence"]
+        if active_seconds:
+            if seg_correct:
+                correct_confs.append(seg["confidence"])
+            else:
+                incorrect_confs.append(seg["confidence"])
+
+    print(f"Confidence Method:              {pred_res.get('confidence_method', 'unknown')}")
+    if correct_confs:
+        print(f"Mean Confidence (correct):      {np.mean(correct_confs):.3f}")
+    if incorrect_confs:
+        print(f"Mean Confidence (incorrect):    {np.mean(incorrect_confs):.3f}")
+    if correct_confs and incorrect_confs:
+        gap = np.mean(correct_confs) - np.mean(incorrect_confs)
+        print(f"Confidence Gap (correct - bad): {gap:+.3f}")
+
+    separability = pred_res.get("separability", [])
+    low_regions = pred_res.get("low_separability_regions", [])
+    print(f"Separability Windows:           {len(separability)}")
+    print(f"Low-Separability Regions:       {len(low_regions)}")
+    for r in low_regions:
+        print(f"  {r['start_s']:.1f}s - {r['end_s']:.1f}s (min_sep={r['min_separability']:.4f})")
+
     print("=" * 65)
 
 

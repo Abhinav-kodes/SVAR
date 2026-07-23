@@ -42,43 +42,44 @@ class DenoiserPipeline:
         ratio = (power_raw + 1e-10) / (power_clean + 1e-10)
         return float(10 * np.log10(ratio))
 
-    def process_file(self, filepath: str) -> tuple[np.ndarray, dict]:
+    def process(self, raw_audio: np.ndarray, sr: int = None) -> tuple[np.ndarray, dict]:
         """
-        Processes a raw audio file through the full enhancement pipeline and calculates metrics.
+        Processes raw audio samples through the full enhancement pipeline and calculates metrics.
         
         Args:
-            filepath: Path to the input audio file
+            raw_audio: 1D numpy array of audio samples
+            sr: Sample rate in Hz (defaults to self.sr if None)
             
         Returns:
             processed_audio: 1D numpy array (float32) of the enhanced/denoised audio
             metrics: dict containing quality metrics
         """
-        # 1. Load and standardise
-        raw_audio, sr = load_audio(filepath, target_sr=self.sr)
-        
-        # 2. Pre-enhancement metrics
+        if sr is None:
+            sr = self.sr
+            
+        # 1. Pre-enhancement metrics
         snr_before = calculate_snr(raw_audio, sr)
         clipping_ratio = detect_clipping(raw_audio)
         silence_ratio = calculate_silence_ratio(raw_audio, sr)
         
-        # 3. Apply enhancement chain (declip -> HPF -> notch -> compressor)
+        # 2. Apply enhancement chain (declip -> HPF -> notch -> compressor)
         enhanced_audio = enhance_audio(raw_audio, sr)
         
-        # 4. Apply Wiener Denoiser
+        # 3. Apply Wiener Denoiser
         final_audio = wiener_denoise(enhanced_audio, sr, noise_duration_s=0.5, gain_floor=0.15, over_subtraction=1.2)
         
-        # 5. Post-enhancement metrics
+        # 4. Post-enhancement metrics
         snr_after = calculate_snr(final_audio, sr)
         snr_improvement = snr_after - snr_before
         
-        # 6. Assess hum removal (50 Hz band drop)
+        # 5. Assess hum removal (50 Hz band drop)
         hum_drop_db = self._measure_hum_drop(raw_audio, final_audio)
         hum_removed = hum_drop_db >= 15.0
         
-        # 7. Dynamic range compression check (flagged True as compressor is always run in pipeline)
+        # 6. Dynamic range compression check (flagged True as compressor is always run in pipeline)
         compression_applied = True
         
-        # 8. Determine quality grade
+        # 7. Determine quality grade
         # PASS if final SNR is >= 15dB or we improved it by >= 2dB (while maintaining positive final SNR)
         if snr_after >= 15.0 or (snr_improvement >= 2.0 and snr_after > 5.0):
             grade = "PASS"
@@ -97,6 +98,20 @@ class DenoiserPipeline:
         }
         
         return final_audio, metrics
+
+    def process_file(self, filepath: str) -> tuple[np.ndarray, dict]:
+        """
+        Processes a raw audio file through the full enhancement pipeline and calculates metrics.
+        
+        Args:
+            filepath: Path to the input audio file
+            
+        Returns:
+            processed_audio: 1D numpy array (float32) of the enhanced/denoised audio
+            metrics: dict containing quality metrics
+        """
+        raw_audio, sr = load_audio(filepath, target_sr=self.sr)
+        return self.process(raw_audio, sr)
 
 if __name__ == "__main__":
     import os

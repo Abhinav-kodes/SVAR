@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SVAR — Interactive Diarization Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --card-bg: rgba(18, 24, 38, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --agent-color: #06b6d4;
+      --agent-glow: rgba(6, 182, 212, 0.3);
+      --customer-color: #f59e0b;
+      --customer-glow: rgba(245, 158, 11, 0.3);
+      --accent-purple: #8b5cf6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(6, 182, 212, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.15) 0px, transparent 50%);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 1.25rem 2rem;
+      border-bottom: 1px solid var(--card-border);
+      background: rgba(11, 15, 25, 0.8);
+      backdrop-filter: blur(12px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--agent-color), var(--accent-purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 1.2rem;
+      color: white;
+      box-shadow: 0 4px 15px rgba(6, 182, 212, 0.4);
+    }
+
+    .brand-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .badge-checkpoint {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+      gap: 1.5rem;
+      padding: 1.5rem 2rem;
+      flex: 1;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.25rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      min-width: 0;
+    }
+
+    .card-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .file-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      min-width: 0;
+      overflow-x: auto;
+    }
+
+    .file-item {
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+
+    .file-item:hover {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .file-item.active {
+      background: rgba(6, 182, 212, 0.12);
+      border-color: var(--agent-color);
+      box-shadow: 0 0 15px var(--agent-glow);
+    }
+
+    .file-name {
+      font-weight: 500;
+      font-size: 0.9rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .file-ext {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.08);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    .main-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      min-width: 0;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--card-border);
+      padding: 1rem;
+      border-radius: 12px;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-value {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .player-box {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    audio {
+      width: 100%;
+      border-radius: 10px;
+      outline: none;
+    }
+
+    /* Visual Timeline Bar */
+    .timeline-container {
+      margin-top: 0.5rem;
+    }
+
+    .timeline-bar {
+      height: 36px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--card-border);
+      cursor: pointer;
+    }
+
+    .timeline-segment {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-radius: 4px;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      cursor: pointer;
+    }
+
+    .timeline-segment.agent {
+      background: var(--agent-color);
+      box-shadow: 0 0 10px var(--agent-glow);
+    }
+
+    .timeline-segment.customer {
+      background: var(--customer-color);
+      box-shadow: 0 0 10px var(--customer-glow);
+    }
+
+    .timeline-segment.active-play {
+      transform: scaleY(1.1);
+      border: 2px solid white;
+      z-index: 10;
+    }
+
+    .timeline-playhead {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: white;
+      box-shadow: 0 0 8px white;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .legend {
+      display: flex;
+      gap: 1.5rem;
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .legend-dot.agent { background: var(--agent-color); }
+    .legend-dot.customer { background: var(--customer-color); }
+
+    /* Segment Table */
+    .table-wrapper {
+      max-height: 420px;
+      overflow-y: auto;
+      overflow-x: auto;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      min-width: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.875rem;
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      position: sticky;
+      top: 0;
+      backdrop-filter: blur(8px);
+    }
+
+    td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    tr {
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    tr:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    tr.active-row {
+      background: rgba(6, 182, 212, 0.15) !important;
+    }
+
+    .speaker-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+    }
+
+    .speaker-tag.agent {
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--agent-color);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+    }
+
+    .speaker-tag.customer {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--customer-color);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(11, 15, 25, 0.75);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(6, 182, 212, 0.2);
+      border-top-color: var(--agent-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 1100px) {
+      .container {
+        grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+        padding: 1.25rem 1rem;
+        gap: 1rem;
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 960px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+
+      header {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        padding: 1rem;
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .table-wrapper {
+        max-height: 320px;
+      }
+
+      table {
+        font-size: 0.8rem;
+      }
+
+      th, td {
+        padding: 0.6rem 0.65rem;
+      }
+
+      .card {
+        padding: 1rem;
+      }
+
+      .card-title {
+        font-size: 1rem;
+      }
+
+      .main-panel {
+        min-width: 0;
+      }
+    }
+
+    @media (max-width: 540px) {
+      .container {
+        padding: 0.75rem;
+        gap: 0.75rem;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stat-value {
+        font-size: 1.2rem;
+      }
+
+      .legend {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      header {
+        padding: 0.75rem;
+      }
+
+      .brand-title {
+        font-size: 1.1rem;
+      }
+
+      .badge-checkpoint {
+        font-size: 0.7rem;
+      }
+
+      .table-wrapper {
+        max-height: 260px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-logo">S</div>
+      <div>
+        <div class="brand-title">SVAR Call Analytics</div>
+        <div class="brand-subtitle">Interactive Speaker Diarization Test Dashboard</div>
+      </div>
+    </div>
+    <div class="badge-checkpoint">Checkpoint: Days 1–11 Complete ✅</div>
+  </header>
+
+  <div class="container">
+    <!-- Sidebar -->
+    <div class="card">
+      <div class="card-title">📁 Sample Call Recordings</div>
+      <div id="fileList" class="file-list">
+        <div style="color: var(--text-muted); font-size: 0.85rem;">Loading sample recordings...</div>
+      </div>
+    </div>
+
+    <!-- Main Workspace -->
+    <div class="main-panel">
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Duration</div>
+          <div id="statTotalDur" class="stat-value">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active Speech</div>
+          <div id="statSpeechDur" class="stat-value">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label" style="color: var(--agent-color);">Speaker 1 (Agent)</div>
+          <div id="statAgent" class="stat-value" style="color: var(--agent-color);">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label" style="color: var(--customer-color);">Speaker 2 (Customer)</div>
+          <div id="statCustomer" class="stat-value" style="color: var(--customer-color);">--</div>
+        </div>
+      </div>
+
+      <!-- Player & Timeline -->
+      <div class="card player-box">
+        <div class="card-title" id="activeFileTitle">Select a call recording to process</div>
+
+        <audio id="audioPlayer" controls style="display: none;"></audio>
+
+        <div class="timeline-container">
+          <div id="timelineBar" class="timeline-bar">
+            <div id="playhead" class="timeline-playhead" style="left: 0%;"></div>
+          </div>
+          <div class="legend">
+            <div class="legend-item"><div class="legend-dot agent"></div> Speaker 1 (Agent)</div>
+            <div class="legend-item"><div class="legend-dot customer"></div> Speaker 2 (Customer)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Separability Chart -->
+      <div class="card" id="separabilityCard" style="display: none;">
+        <div class="card-title">🔬 Speaker Separability <span id="confMethodBadge" style="margin-left: auto; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 6px; background: rgba(139,92,246,0.15); color: #8b5cf6;"></span></div>
+        <div id="separabilityChart" style="height: 60px; display: flex; align-items: flex-end; gap: 1px; padding: 0.5rem 0;"></div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
+          <span>0s</span>
+          <span id="sepDurLabel"></span>
+        </div>
+        <div id="lowRegionsLabel" style="font-size: 0.75rem; color: #f59e0b; margin-top: 0.5rem;"></div>
+      </div>
+
+      <!-- Segment Table -->
+      <div class="card">
+        <div class="card-title">🎙️ Speaker Turn Timeline (Click row to jump audio)</div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Speaker</th>
+                <th>Start Time</th>
+                <th>End Time</th>
+                <th>Duration</th>
+                <th>Confidence</th>
+              </tr>
+            </thead>
+            <tbody id="segmentsTableBody">
+              <tr>
+                <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                  No call recording selected.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <div style="font-weight: 600; font-size: 1.1rem;">Running Denoising & Speaker Diarization...</div>
+    <div style="color: var(--text-muted); font-size: 0.85rem;">Running pyannote pipeline, computing silhouette confidence, and measuring speaker separability.</div>
+  </div>
+
+  <script>
+    let currentDiarizationData = null;
+    let currentAudioDuration = 0;
+    let activeFileName = '';
+
+    const audioPlayer = document.getElementById('audioPlayer');
+    const playhead = document.getElementById('playhead');
+    const timelineBar = document.getElementById('timelineBar');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+
+    async function loadSampleCalls() {
+      try {
+        const res = await fetch('/api/sample_calls');
+        const files = await res.json();
+        const container = document.getElementById('fileList');
+        container.innerHTML = '';
+
+        files.forEach((file, index) => {
+          const item = document.createElement('div');
+          item.className = 'file-item';
+          item.onclick = () => processCallFile(file);
+          item.innerHTML = `
+            <span class="file-name">${file}</span>
+            <span class="file-ext">${file.split('.').pop().toUpperCase()}</span>
+          `;
+          container.appendChild(item);
+
+          if (index === 0) processCallFile(file);
+        });
+      } catch (err) {
+        console.error('Failed to load sample calls:', err);
+      }
+    }
+
+    async function processCallFile(filename) {
+      activeFileName = filename;
+
+      document.querySelectorAll('.file-item').forEach(el => {
+        el.classList.toggle('active', el.querySelector('.file-name').textContent === filename);
+      });
+
+      document.getElementById('activeFileTitle').textContent = `Now Playing: ${filename}`;
+      loadingOverlay.style.display = 'flex';
+
+      try {
+        audioPlayer.src = `/audio/${filename}`;
+        audioPlayer.style.display = 'block';
+
+        const res = await fetch('/api/diarize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          const msg = errData?.error || `HTTP ${res.status} ${res.statusText}`;
+          throw new Error(msg);
+        }
+
+        currentDiarizationData = await res.json();
+        renderDashboard(currentDiarizationData);
+      } catch (err) {
+        console.error('Error processing call file:', err);
+      } finally {
+        loadingOverlay.style.display = 'none';
+      }
+    }
+
+    function renderDashboard(data) {
+      const talk = data.talk_ratio;
+      currentAudioDuration = talk.total_speech_s || 1.0;
+
+      document.getElementById('statTotalDur').textContent = `${data.duration_s || '--'}s`;
+      document.getElementById('statSpeechDur').textContent = `${talk.total_speech_s}s`;
+      document.getElementById('statAgent').textContent = `${talk.agent_duration_s}s (${(talk.agent_ratio * 100).toFixed(1)}%)`;
+      document.getElementById('statCustomer').textContent = `${talk.customer_duration_s}s (${(talk.customer_ratio * 100).toFixed(1)}%)`;
+
+      timelineBar.querySelectorAll('.timeline-segment').forEach(el => el.remove());
+      const totalDur = data.duration_s || talk.total_speech_s;
+
+      data.segments.forEach((seg, idx) => {
+        const segEl = document.createElement('div');
+        segEl.className = `timeline-segment ${seg.speaker}`;
+        segEl.dataset.idx = idx;
+
+        const leftPct = (seg.start_time_s / totalDur) * 100;
+        const widthPct = (seg.duration_s / totalDur) * 100;
+
+        segEl.style.left = `${leftPct}%`;
+        segEl.style.width = `${Math.max(widthPct, 0.5)}%`;
+
+        segEl.onclick = (e) => {
+          e.stopPropagation();
+          jumpToTime(seg.start_time_s);
+        };
+
+        timelineBar.appendChild(segEl);
+      });
+
+      // Separability chart
+      const sepCard = document.getElementById('separabilityCard');
+      const sepChart = document.getElementById('separabilityChart');
+      const confBadge = document.getElementById('confMethodBadge');
+      const sepDurLabel = document.getElementById('sepDurLabel');
+      const lowRegLabel = document.getElementById('lowRegionsLabel');
+      const separability = data.separability || [];
+      const lowRegions = data.low_separability_regions || [];
+      const confMethod = data.confidence_method || 'unknown';
+
+      if (separability.length > 0) {
+        sepCard.style.display = '';
+        confBadge.textContent = confMethod;
+        const dur = data.duration_s || 1;
+        sepDurLabel.textContent = dur.toFixed(0) + 's';
+        sepChart.innerHTML = '';
+        const maxH = 50;
+        separability.forEach(w => {
+          const pct = Math.max(0, Math.min(1, w.separability || 0));
+          const h = Math.max(2, pct * maxH);
+          const color = pct < 0.3 ? '#ef4444' : pct < 0.6 ? '#f59e0b' : '#22c55e';
+          const bar = document.createElement('div');
+          bar.style.cssText = `flex:1;min-width:1px;height:${h}px;background:${color};border-radius:2px;position:relative;cursor:default;`;
+          bar.title = `${w.start_s.toFixed(1)}s-${w.end_s.toFixed(1)}s: ${pct.toFixed(3)}`;
+          sepChart.appendChild(bar);
+        });
+        if (lowRegions.length > 0) {
+          lowRegLabel.textContent = `⚠ ${lowRegions.length} low-separability region(s): ` +
+            lowRegions.map(r => `${r.start_s.toFixed(1)}s–${r.end_s.toFixed(1)}s`).join(', ');
+        } else {
+          lowRegLabel.textContent = '';
+        }
+      } else {
+        sepCard.style.display = 'none';
+      }
+
+      const tbody = document.getElementById('segmentsTableBody');
+      tbody.innerHTML = '';
+
+      data.segments.forEach((seg, idx) => {
+        const tr = document.createElement('tr');
+        tr.id = `row-seg-${idx}`;
+        tr.onclick = () => jumpToTime(seg.start_time_s);
+
+        tr.innerHTML = `
+          <td>
+            <span class="speaker-tag ${seg.speaker}">
+              ${seg.speaker === 'agent' ? 'Speaker 1 (Agent)' : 'Speaker 2 (Customer)'}
+            </span>
+          </td>
+          <td>${seg.start_time_s.toFixed(2)}s</td>
+          <td>${seg.end_time_s.toFixed(2)}s</td>
+          <td>${seg.duration_s.toFixed(2)}s</td>
+          <td>${(seg.confidence * 100).toFixed(0)}% ${seg.uncertain ? '⚠️' : '✅'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function jumpToTime(timeSec) {
+      audioPlayer.currentTime = timeSec;
+      audioPlayer.play();
+    }
+
+    audioPlayer.ontimeupdate = () => {
+      if (!currentDiarizationData) return;
+      const curTime = audioPlayer.currentTime;
+      const totalDur = currentDiarizationData.duration_s || 1.0;
+
+      const pct = (curTime / totalDur) * 100;
+      playhead.style.left = `${Math.min(pct, 100)}%`;
+
+      let activeIdx = -1;
+      currentDiarizationData.segments.forEach((seg, idx) => {
+        const isActive = curTime >= seg.start_time_s && curTime <= seg.end_time_s;
+
+        const timelineSeg = timelineBar.querySelector(`.timeline-segment[data-idx="${idx}"]`);
+        if (timelineSeg) timelineSeg.classList.toggle('active-play', isActive);
+
+        const row = document.getElementById(`row-seg-${idx}`);
+        if (row) {
+          row.classList.toggle('active-row', isActive);
+          if (isActive && activeIdx === -1) {
+            activeIdx = idx;
+            row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }
+      });
+    };
+
+    timelineBar.onclick = (e) => {
+      if (!currentDiarizationData) return;
+      const rect = timelineBar.getBoundingClientRect();
+      const clickPct = (e.clientX - rect.left) / rect.width;
+      const totalDur = currentDiarizationData.duration_s || 1.0;
+      jumpToTime(clickPct * totalDur);
+    };
+
+    loadSampleCalls();
+  </script>
+</body>
+</html>

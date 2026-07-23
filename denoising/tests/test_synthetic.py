@@ -173,5 +173,19 @@ class TestDenoisingComponents(unittest.TestCase):
         # Denoising should improve SNR by at least 3.0 dB
         self.assertGreater(snr_after, snr_before + 3.0)
 
+    def test_denoiser_pipeline_process(self):
+        from denoising.pipeline import DenoiserPipeline
+        pipeline = DenoiserPipeline(sr=self.sr)
+        
+        signal = 0.5 * np.sin(2 * np.pi * 440 * self.t)
+        noise = 0.02 * np.random.randn(len(self.t))
+        audio = signal + noise
+        
+        clean_audio, metrics = pipeline.process(audio, self.sr)
+        self.assertEqual(len(clean_audio), len(audio))
+        self.assertIn("snr_before_db", metrics)
+        self.assertIn("snr_after_db", metrics)
+        self.assertIn("audio_quality_grade", metrics)
+
 if __name__ == '__main__':
     unittest.main()
