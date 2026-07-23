@@ -172,22 +172,32 @@ def detect_single_speaker(
     embeddings: np.ndarray,
 ) -> Tuple[bool, float]:
     """Detect if audio contains a single speaker.
-    
-    Uses the change detector: if ALL boundaries score below threshold,
-    it's likely single-speaker.
-    
-    Returns (is_single_speaker, mean_score).
+
+    Uses pyannote's segmentation data: for each chunk, computes which
+    speaker dominates the frames. If ALL chunks consistently assign
+    the same dominant speaker, the audio is single-speaker.
+
+    Returns (is_single_speaker, mean_dominance).
     """
-    model = _load_model()
-    if model is None or len(segments) < 3:
+    if seg_data is None or len(segments) < 3:
         return False, 0.5
 
-    scores = score_boundaries(segments, seg_data, embeddings)
-    threshold = model["threshold"]
-    
-    n_above = sum(1 for s in scores if s >= threshold)
-    mean_score = float(np.mean(scores))
-    
-    is_single = n_above == 0 and mean_score < threshold
-    
-    return is_single, mean_score
+    if hasattr(seg_data, "sliding_window"):
+        seg_np = np.asarray(seg_data.data, dtype=np.float32)
+    else:
+        seg_np = np.asarray(seg_data, dtype=np.float32)
+    if seg_np.ndim != 3 or seg_np.shape[2] < 3:
+        return False, 0.5
+
+    spk0_ratio = (seg_np[:, :, 1] > seg_np[:, :, 2]).mean(axis=1)
+    spk1_ratio = (seg_np[:, :, 2] > seg_np[:, :, 1]).mean(axis=1)
+
+    dominant_speaker = np.where(spk0_ratio > spk1_ratio, 0, 1)
+    dominant_ratio = np.maximum(spk0_ratio, spk1_ratio)
+
+    all_same = bool(np.all(dominant_speaker == dominant_speaker[0]))
+    mean_dominance = float(dominant_ratio.mean())
+
+    is_single = all_same and mean_dominance > 0.90
+
+    return is_single, mean_dominance
