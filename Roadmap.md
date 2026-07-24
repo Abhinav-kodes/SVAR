@@ -1,692 +1,338 @@
-# Call Analytics Pipeline — Updated Day-by-Day Roadmap
-*Incorporating EmoInHindi Dataset (44,247 utterances, IIT Patna LREC 2022)*
+# SVAR — Call Analytics Pipeline Roadmap
+*Updated to reflect current codebase state — 24 Jul 2026*
 
 ---
 
-## Project Architecture
+## Project Architecture (Current)
 
 ```
 RAW CALL AUDIO
       ↓
-┌─────────────────────────┐
-│  PART 1: DENOISING      │  Days 1–5
-│  + ENHANCEMENT PIPELINE │
-└──────────┬──────────────┘
+┌─────────────────────────────────┐
+│  PART 1: DENOISING      ✅ DONE │  Built from scratch: DSP chain
+│  + ENHANCEMENT PIPELINE         │  Butterworth HPF, IIR notch,
+└──────────┬──────────────────────┘  compressor, declipper, Wiener
            ↓ clean audio
-┌─────────────────────────┐
-│  PART 2: DIARIZATION    │  Days 6–11
-│  + BASELINE PROFILING   │
-└──────┬──────────┬───────┘
+┌─────────────────────────────────┐
+│  PART 2: DIARIZATION    ✅ DONE │  pyannote/speaker-diarization-3.1
+│  + SPEAKER PROFILING            │  + SpeechBrain ECAPA-TDNN embeddings
+└──────┬──────────┬───────────────┘  + silhouette confidence scoring
        ↓          ↓
   Agent        Customer
   segments     segments
        ↓          ↓
-┌─────────────────────────┐
-│  PART 3: SENTIMENT      │  Days 12–19
-│  ANALYSIS (Voice+Text)  │
-└──────────┬──────────────┘
+┌─────────────────────────────────┐
+│  PART 3: SENTIMENT     🔶 60%   │  Preprocessing, acoustic classifier,
+│  ANALYSIS (Voice+Text)          │  STT, model architecture done
+└──────────┬──────────────────────┘  Training, fusion, QA remaining
            ↓
    Per-speaker emotion
    timeline + QA scores
            ↓
-┌─────────────────────────┐
-│  INTEGRATION + POLISH   │  Days 20–25
-│  FastAPI + Celery +     │
-│  RabbitMQ + MongoDB     │
-└─────────────────────────┘
+┌─────────────────────────────────┐
+│  INTEGRATION + POLISH   🔴 TODO │  FastAPI, dashboard, Docker
+│  API + Dashboard + Deploy       │
+└─────────────────────────────────┘
 ```
 
 ---
 
-## Part 1 — Denoising + Enhancement Pipeline (Days 1–5)
+## Part 1 — Denoising + Enhancement Pipeline ✅ COMPLETE
 
-### Day 1 — Project Setup + Audio Loader + Quality Metrics
+All components implemented, tested, and benchmarked. Benchmarked on 3 sample calls with SNR improvements up to +9.11 dB.
 
-**Goal:** Project scaffold + all audio quality measurement components working
+### ✅ Day 1 — Audio Loader + Quality Metrics
+- `denoising/audio_loader.py` — load WAV/MP3/OPUS, stereo→mono, resample to 16kHz via librosa
+- `denoising/snr_calculator.py` — hybrid VAD + spectral-percentile SNR (not naive FFT)
+- `denoising/clipping_detector.py` — consecutive-run clipping detection (≥3 flatline samples)
+- `denoising/vad_basic.py` — RMS energy-threshold VAD with 10th-percentile noise floor
 
-**Setup:**
-```
-call-analytics/
-├── part1_denoising/
-│   ├── audio_loader.py
-│   ├── audio_enhancer.py
-│   ├── snr_calculator.py
-│   ├── clipping_detector.py
-│   ├── silence_ratio.py
-│   └── tests/
-│       └── enhancement_test.py
-├── part2_diarization/
-├── part3_sentiment/
-│   ├── data/
-│   │   └── emoin_hindi.csv      ← your dataset goes here
-│   └── preprocessing/
-├── backend/
-└── data/sample_calls/           ← download 10 files from Kaggle Hindi Call Center
-```
+### ✅ Day 2 — Silence Ratio + Timeline Visualization
+- `denoising/silence_ratio.py` — RMS-based silence ratio via VAD
+- `denoising/visualize_timeline.py` — speech/silence timeline plot
+- `denoising/tests/test_synthetic.py` — synthetic unit tests for all DSP components
+- `denoising/tests/test.py` — batch quality assessment on real calls → `quality_report.json`
 
-**Tasks:**
-- Download 10 sample Hindi call recordings from Kaggle Hindi Call Center dataset
-- Implement `audio_loader.py` — load WAV/MP3, align & merge agent and customer channels if separate, resample to 16kHz mono via `scipy.signal.resample`
-- Implement `snr_calculator.py` — SNR using numpy FFT (signal power vs noise floor from first 0.5s)
-- Implement `clipping_detector.py` — samples at ±max amplitude threshold → clipping ratio
+### ✅ Day 3 — Audio Enhancement Chain
+- `denoising/highpass_filter.py` — 5th-order Butterworth high-pass at 80 Hz
+- `denoising/notch_filter.py` — IIR notch at 50 Hz (Indian mains hum), Q=30
+- `denoising/compressor.py` — RMS-based dynamic range compressor (-20 dBFS, 3:1 ratio)
+- `denoising/declipper.py` — cubic spline interpolation for clipped peaks (≥0.99 threshold)
+- `denoising/enhancement_pipeline.py` — chains: declip → HPF → notch → compressor
+- `denoising/visualize_enhancement.py` — FFT comparison plots (0–1000 Hz focus)
 
-**Deliverable:** `quality_report.json` per test file showing SNR + clipping ratio
+### ✅ Day 4 — Spectral Wiener Denoiser
+- `denoising/spectral_denoiser.py` — STFT Wiener filter (25ms Hamming, 50% overlap)
+  - Noise PSD from first 0.5s silence region
+  - Spectral floor (gain_floor=0.1) to prevent musical noise
+  - Configurable over-subtraction factor
 
----
+### ✅ Day 5 — Pipeline Integration + Benchmarks
+- `denoising/pipeline.py` — `DenoiserPipeline` class
+  - Returns: `snr_before_db`, `snr_after_db`, `snr_improvement_db`, `clipping_ratio`, `silence_ratio`, `hum_removed`, `compression_applied`, `audio_quality_grade`
+  - Hum drop measurement via 48–52 Hz band power comparison
+- `denoising/tests/benchmark.py` — batch benchmark → CSV export
 
-### Day 2 — Silence Ratio + Basic VAD
-
-**Goal:** Measure silence and detect speech regions
-
-**Tasks:**
-- Implement `silence_ratio.py` — RMS energy per 25ms frame, frames below threshold = silence
-- Implement `vad_basic.py` — energy-threshold VAD, returns boolean speech/silence array per frame
-- Unit tests for all Day 1 + Day 2 components using synthetic signals (known SNR, known clipping)
-- Test on 3 real sample calls, verify output makes sense visually
-
-**Deliverable:** Speech/silence timeline plot for a sample call
+**Benchmark Results:**
+| File | Input SNR | Output SNR | Improvement | Grade |
+|---|---|---|---|---|
+| sample_audio.mp3 | 54.09 dB | 53.91 dB | -0.18 dB | PASS |
+| sample_audio_2.opus | 38.02 dB | 47.13 dB | **+9.11 dB** | PASS |
+| sample_audio_3.opus | 33.97 dB | 38.71 dB | **+4.73 dB** | PASS |
 
 ---
 
-### Day 3 — Audio Enhancement Pipeline (Filters + Compression)
+## Part 2 — Speaker Diarization ✅ COMPLETE
 
-**Goal:** Remove hum, rumble, and normalize loudness before denoising
+> **Architecture Change:** The original roadmap planned a custom MFCC→prosodic→formant→fingerprint pipeline. The implementation uses **pyannote/speaker-diarization-3.1** for segmentation + **SpeechBrain ECAPA-TDNN** for embeddings + **sklearn silhouette scoring** for confidence. This is significantly more robust and production-ready.
 
-**Tasks:**
-- Implement `highpass_filter.py` — Butterworth high-pass at 80 Hz (remove rumble)
-- Implement `notch_filter.py` — IIR notch at 50 Hz (Indian mains hum)
-- Implement `compressor.py` — RMS-based dynamic range compression (threshold -20 dB, ratio 3:1)
-- Implement `declipper.py` — simple interpolation for clipped samples (optional)
-- Create `enhancement_pipeline.py` chaining: high-pass → notch → compression → de-clipper
-- Test on 3 sample calls: verify 50 Hz spike removed from FFT, quiet speech boosted
+### ✅ Day 6–9 — Core Diarization (Implemented via pyannote + SpeechBrain)
 
-**Deliverable:** `enhance_audio()` function returning processed audio, FFT plot showing 50 Hz notch
+**Original plan:** Custom MFCC extractor, prosodic extractor, LPC formant estimator, pause segmenter, speaker fingerprinter, speaker assigner, baseline builder.
 
----
+**Actual implementation:**
+- `diarization/pipeline.py` — `DiarizationPipeline` class
+  - Uses `pyannote/speaker-diarization-3.1` (HuggingFace, lazy-loaded)
+  - Hook-based extraction of chunk embeddings + segmentation data + global centroids
+  - Automatic agent/customer assignment (first pyannote speaker = agent)
+  - Talk ratio computation (agent/customer/overlap durations)
+  - Configurable `num_speakers`, `min_speakers`, `max_speakers`
 
-### Day 4 — Spectral Wiener Denoiser
+- `diarization/speaker_embedder.py` — SpeechBrain ECAPA-TDNN module
+  - `_embed_chunk()` / `_embed_centered()` — extract embeddings for time ranges
+  - `extract_segment_embeddings()` — batch embedding extraction with min-duration padding
+  - `split_merged_turns()` — detect and split merged turns where pyannote missed speaker changes (drift threshold 0.30)
+  - `reassign_speakers()` — anchor-based reclassification using SpeechBrain embeddings
+  - `decode_region()` — Viterbi sequence decoder with transition priors for ambiguous regions
 
-**Goal:** Core denoising — runs after enhancement pipeline (the most mathematically intensive component of Part 1)
+- `diarization/change_detector.py` — ML-based false split detection
+  - `score_boundaries()` — scores each inter-segment boundary using a trained classifier (joblib model)
+  - `merge_false_splits()` — merges adjacent same-speaker segments below confidence threshold
+  - `detect_single_speaker()` — detects single-speaker audio via pyannote segmentation dominance
 
-**Tasks:**
-- Implement `spectral_denoiser.py` to run on already-enhanced audio (output from Day 3):
-  1. STFT — frame signal into 25ms windows, apply Hamming window, FFT per frame
-  2. Estimate noise PSD from first 0.5s (assumed silence/noise-only region)
-  3. Wiener gain per frequency bin:
-     ```
-     PSD_noise  = mean(|X_noise(f)|²)
-     PSD_signal = max(|X(f)|² - PSD_noise, 0)
-     gain       = PSD_signal / (PSD_signal + PSD_noise + ε)
-     X_clean(f) = gain * X(f)
-     ```
-  4. iSTFT — overlap-add reconstruction back to time domain
-- Listen to before/after audio on 3 sample calls
+- `diarization/confidence.py` — embedding-based confidence scoring
+  - `compute_segment_confidence()` — sklearn silhouette_samples on segment embeddings
+  - `compute_rolling_separability()` — sliding-window cosine distance between speaker centroids
+  - `detect_low_separability_regions()` — identifies ambiguous time regions
 
-**Deliverable:** Working denoiser that reduces background noise audibly
+### ✅ Day 10–11 — Integration + Dashboard
 
----
+- `diarization/dashboard_server.py` — HTTP server (port 8050) with:
+  - `GET /` — serves dashboard HTML
+  - `GET /api/sample_calls` — lists available audio files
+  - `GET /audio/<filename>` — serves raw audio files
+  - `POST /api/diarize` — full pipeline: load → denoise → diarize → return JSON
+- `diarization/dashboard/index.html` — web UI for diarization visualization
 
-### Day 5 — SNR Delta Measurement + Part 1 Integration
-
-**Goal:** Measure denoiser effectiveness + wrap Part 1 into pipeline class
-
-**Tasks:**
-- Post-denoise SNR calculation and delta computation
-- Measure 50 Hz power before/after notch filter (should drop by 20+ dB)
-- Create `DenoiserPipeline` class running all steps, returning:
-  ```json
-  {
-    "snr_before_db": 8.3,
-    "snr_after_db": 16.7,
-    "snr_improvement_db": 8.4,
-    "clipping_ratio": 0.002,
-    "silence_ratio": 0.31,
-    "hum_removed": true,
-    "compression_applied": true,
-    "audio_quality_grade": "PASS"
-  }
-  ```
-- Benchmark on all 10 sample calls → save results to CSV
-- Write `README_part1.md` with SNR improvement numbers as evidence
-
-**Deliverable:** `DenoiserPipeline` class + benchmark CSV showing before/after SNR across 10 calls
-
----
-
-## Part 2 — Diarization + Baseline Profiling (Days 6–11)
-
-### Day 6 — MFCC Extractor Integration
-
-**Goal:** Integrate the core feature extractor used throughout the diarization and sentiment modules.
-
-**Tasks:**
-- Validate output of MFCC extractor on enhanced audio — verify lower jitter/shimmer noise floor vs raw audio
-- Implement `mfcc_extractor.py` leveraging standard libraries (such as `librosa`):
-  1. Pre-emphasis filtering
-  2. Overlapping frame extraction
-  3. Windowing (e.g. Hamming)
-  4. Mel filterbank conversion (Slaney normalization)
-  5. Log energy calculation
-  6. DCT-II mapping to 13 MFCC coefficients
-- Validate output against standard `librosa.feature.mfcc()` and ensure alignment
-- Unit test confirming output shape `(n_frames, 13)`
-
-**Deliverable:** Validated MFCC extractor matching standard librosa output
-
----
-
-### Day 7 — Prosodic Feature Extractor
-
-**Goal:** Extract pitch, energy, speaking rate, jitter, shimmer, HiF0 position per segment
-
-**Tasks:**
-- Implement `prosodic_extractor.py`:
-  - **Pitch (F0):** Autocorrelation — find lag of max autocorrelation in 50–500Hz range per frame
-  - **RMS Energy:** Per-frame root-mean-square amplitude
-  - **Speaking Rate:** Zero-crossing rate per second as phoneme rate proxy
-  - **Jitter:** Mean absolute diff between consecutive F0 values / mean F0
-  - **Shimmer:** Mean absolute diff between consecutive RMS values / mean RMS
-  - **Pause Ratio:** Silence frames / total frames (from VAD)
-  - **Compression Ratio:** peak/RMS ratio post-compression (helps detect forced speech)
-  - **HiF0 Position:** Peak F0 index / total frames → "beginning" / "middle" / "end"
-- Return as flat numpy vector (32-dim)
-
-**Deliverable:** `extract_prosodic_features(segment, sr)` returning validated feature vector
-
----
-
-### Day 8 — Pause Segmenter + Speaker Fingerprinter
-
-**Goal:** Split audio at turn boundaries, create per-segment voice identity vectors
-
-**Tasks:**
-- Implement `pause_segmenter.py`:
-  - Use VAD output, group consecutive speech frames into segments
-  - Split at pauses > 400ms (configurable threshold)
-  - Return list of `(start_sample, end_sample, audio_chunk)`
-- Implement `speaker_fingerprinter.py`:
-  - MFCC stats: mean + std of 13 coefficients = 26 values
-  - Append: F0 mean, F0 std, RMS energy, speaking rate, F1 mean, F2 mean
-  - L2-normalize → 32-dim fingerprint vector
-
-**Deliverable:** Segmented call with fingerprint vector per segment
-
----
-
-### Day 9 — Speaker Assigner + Baseline Builder
-
-**Goal:** Label each segment as Agent or Customer
-
-**Tasks:**
-- Implement `speaker_assigner.py`:
-  - First segment = Speaker 1 baseline, first clearly different-sounding = Speaker 2 baseline
-  - Per new segment: cosine similarity to both baselines → assign to closest
-  - `cosine_similarity(a, b)` using standard numpy vector operations
-  - "Uncertain" flag when similarity difference < 0.05
-- Implement `baseline_builder.py`:
-  - Store baseline fingerprint per speaker
-  - Rolling EWA update: `baseline = 0.9 * baseline + 0.1 * new_fp`
-  - First speaker to talk in call = Agent (greeting convention)
-- Test on 5 calls — manually verify agent/customer separation
-
-**Deliverable:** Diarization with agent/customer labels on test calls
-
----
-
-### Day 10 — LPC Formant Estimator
-
-**Goal:** Add F1/F2 formant features for better speaker-identity separation
-
-**Tasks:**
-- Implement `lpc_formant_estimator.py`:
-  - Linear Predictive Coding (LPC) using library tools (e.g. `librosa.lpc`)
-  - Find roots of LPC polynomial using standard solver (`numpy.roots`)
-  - Roots near unit circle in upper half-plane → formant frequencies
-  - Return F1, F2 (first two formants in Hz)
-- Integrate into speaker fingerprinter
-- Re-test diarization accuracy on 5 calls with improved fingerprint
-
-**Deliverable:** Improved fingerprinter with formant features, re-tested on 5 calls
-
----
-
-### Day 11 — Part 2 Integration + Testing
-
-**Goal:** `DiarizationPipeline` class, end-to-end test with Part 1 output
-
-**Tasks:**
-- Create `DiarizationPipeline` (consuming enhanced + denoised audio from Part 1):
-  ```python
-  result = pipeline.process(clean_audio)
-  # Returns:
-  # {
-  #   "agent":    {"baseline_fp": [...], "segments": [...]},
-  #   "customer": {"baseline_fp": [...], "segments": [...]}
-  # }
-  ```
-- Run Part 1 → Part 2 chain on 10 test calls end-to-end
-- Log talk ratio (agent vs customer speaking time) per call to CSV
-- Write `README_part2.md`
-
-**🚩 Minimum Viable Checkpoint:** Days 1–11 alone = shippable project. If deadline is close, push this to GitHub now.
-
-**Deliverable:** `DiarizationPipeline` end-to-end on 10 calls
-
----
-
-## Part 3 — Sentiment Analysis (Days 12–19)
-
-### Day 12 — EmoInHindi Dataset Preprocessing
-
-**Goal:** Clean, map, and prepare the EmoInHindi dataset for MuRIL fine-tuning
-
-**Tasks:**
-- Load `emoin_hindi.csv` (44,247 rows)
-- Parse multi-label `emotions` and `emoIntensity` columns:
-  ```python
-  df["emotion_list"]   = df["emotions"].str.split(",")
-  df["intensity_list"] = df["emoIntensity"].str.split(",").apply(
-      lambda x: [int(i) for i in x]
-  )
-  ```
-- Apply 16 → 6 emotion mapping with intensity-based primary label selection:
-  ```python
-  LABEL_MAP = {
-      "anger":"anger",    "annoyed":"anger",
-      "sad":"sadness",    "guilty":"sadness",
-      "fear":"fear",      "apprehensive":"fear",
-      "joy":"happiness",  "grateful":"happiness",
-      "impressed":"happiness", "compassion":"happiness",
-      "disgusted":"disgust",
-      "neutral":"neutral", "confident":"neutral",
-      "anticipation":"neutral", "hopeful":"neutral", "surprised":"neutral",
-  }
-  ```
-- Cap neutral at 10,000, keep all minority classes
-- Add 2-utterance context window per sample (prepend prev 2 utterances)
-- **Split by dialogueId** (not by row!) — 80/10/10 train/val/test
-- Save processed splits to `train.csv`, `val.csv`, `test.csv`
-
-**Expected class distribution after processing:**
-```
-neutral    10,000
-anger       9,200
-happiness   8,300
-fear        7,000
-sadness     6,400
-disgust     4,000
-Total      44,900
+**Pipeline output structure:**
+```json
+{
+  "talk_ratio": {
+    "agent_duration_s": 12.5,
+    "customer_duration_s": 8.3,
+    "overlap_duration_s": 1.2,
+    "agent_ratio": 0.6019,
+    "customer_ratio": 0.3981
+  },
+  "segments": [
+    {
+      "start_time_s": 0.0, "end_time_s": 2.5,
+      "speaker": "agent",
+      "confidence": 0.87,
+      "uncertain": false,
+      "sb_d_agent": 0.12,
+      "sb_d_customer": 0.45,
+      "sb_margin": 0.33
+    }
+  ],
+  "separability": [...],
+  "low_separability_regions": [...],
+  "confidence_method": "silhouette",
+  "denoise_metrics": {...}
+}
 ```
 
-**Deliverable:** 3 clean CSV files ready for MuRIL training
-
 ---
 
-### Day 13 — Delta Normalizer + Acoustic Emotion Classifier
+## Part 3 — Sentiment Analysis 🔶 60% COMPLETE
 
-**Goal:** Build the mathematical core of the acoustic emotion classification
+### ✅ Day 12 — EmoInHindi Dataset Preprocessing
+- `sentiment/preprocessing/prepare_emoin_hindi.py`
+  - 16→6 emotion taxonomy mapping (anger, sadness, fear, happiness, disgust, neutral)
+  - Intensity-based primary label selection from multi-label annotations
+  - 2-utterance context window with `[SEP]` tokens
+  - Dialogue-level 80/10/10 split (no dialogue leakage)
+  - Neutral cap at 10,000 samples
 
-**Tasks:**
-- Implement `delta_normalizer.py`:
-  - Z-score normalize: `delta = (current - baseline) / (baseline_std + ε)`
-  - Output normalized delta vector in range [-1, +1] per feature
-- Build `EMOTION_PROFILES` dictionary from Yildirim 2004 + Cao 2014 + PLOS ONE 2025:
-  ```python
-  EMOTION_PROFILES = {
-    "anger":     {"pitch_d":+2.0,"energy_d":+2.0,"rate_d":+1.5,
-                  "jitter":+1.0,"pause_r":-2.0,"hif0":"middle"},
-    "sadness":   {"pitch_d":-2.0,"energy_d":-2.0,"rate_d":-2.0,
-                  "jitter":+0.5,"pause_r":+2.0,"hif0":"beginning"},
-    "happiness": {"pitch_d":+1.5,"energy_d":+1.0,"rate_d":+1.0,
-                  "jitter":-0.5,"pause_r":-1.0,"hif0":"end"},
-    "fear":      {"pitch_d":+1.0,"energy_d":+0.5,"rate_d":+0.5,
-                  "jitter":+2.0,"pause_r":+0.5,"hif0":"end"},
-    "neutral":   {"pitch_d": 0.0,"energy_d": 0.0,"rate_d": 0.0,
-                  "jitter":-1.0,"pause_r": 0.0,"hif0":"beginning"},
-    "stress":    {"pitch_d":+1.0,"energy_d":+1.0,"rate_d":+0.5,
-                  "jitter":+1.5,"pause_r":-0.5,"hif0":"middle"},
-    "disgust":   {"pitch_d":-0.5,"energy_d": 0.0,"rate_d":-0.5,
-                  "jitter":+0.5,"pause_r": 0.0,"hif0":"beginning"},
-  }
-  ```
-- Implement `acoustic_emotion_classifier.py`:
-  - Cosine similarity vs each profile
-  - +0.3 HiF0 position bonus for matching profile
-  - Return top emotion + all confidence scores
-  - Flag "indeterminate" if top confidence < 0.3
+### ✅ Day 13 — Acoustic Emotion Classifier
+- `sentiment/acoustic_emotion/delta_normalizer.py`
+  - Z-score delta computation: `delta = (current - baseline) / (baseline_std + ε)`
+  - Maps 5 prosodic features → standardized deltas (pitch_d, energy_d, rate_d, jitter_d, pause_r)
+- `sentiment/acoustic_emotion/acoustic_emotion_classifier.py`
+  - `EMOTION_PROFILES` dict with 7 emotion profiles from Yildirim 2004, Cao 2014, PLOS ONE 2025
+  - L2-distance similarity scoring + HiF0 position bonus (+0.30)
+  - Softmax probability normalization, indeterminate flag at <0.30 confidence
 
-**Deliverable:** `classify_emotion(delta_features) → {emotion, confidence, all_scores}`
+### ✅ Day 14 — Whisper STT Integration
+- `sentiment/stt/stt_transcriber.py`
+  - `SpeechToTextTranscriber` class with lazy HuggingFace pipeline init
+  - Supports local Vaani Hindi model (`whisper-hindi/`) or online `ARTPARK-IISc/whisper-large-v3-vaani-hindi`
+  - Automatic resampling to 16kHz, forced Hindi decoder
+  - Batch `transcribe_segments()` for segment lists
+  - Fallback mode for offline testing
 
----
+### ✅ Day 15 — MuRIL Dataset + Model Architecture
+- `sentiment/models/dataset.py`
+  - `EmotionDataset` — PyTorch Dataset with tokenizer integration, emotion/sentiment/intensity labels
+  - `EMOTION_LABEL2ID` (6 classes), `SENTIMENT_LABEL2ID` (3 classes: pos/neu/neg)
+  - `compute_class_weights()` — inverse-frequency weight tensor
+- `sentiment/models/muril_model.py`
+  - `MultiTaskMuRIL` — multi-head architecture on `google/muril-base-cased`
+  - 3 heads: emotion (6), sentiment (3), intensity (1)
+  - Supports local model dir (`muril-base/`) or HuggingFace
+  - Fallback zero-projection when encoder unavailable
 
-### Day 14 — Whisper STT Integration
-
-**Goal:** Transcribe each speaker segment to text
-
-**Tasks:**
-- Download `ARTPARK-IISc/whisper-large-v3-vaani-hindi` from HuggingFace
-- Implement `stt_transcriber.py` using HuggingFace pipeline
-- Set `language="hi"` forced decoder for Hindi
-- Batch-process all segments from Part 2 output
-- Fallback to `openai/whisper-base` if VRAM insufficient for large model
-- Add transcript per segment to the data structure
-
-**Deliverable:** All 10 test call segments with Hindi transcripts attached
-
----
-
-### Day 15 — MuRIL Dataset Loader + Model Architecture
-
-**Goal:** Build the PyTorch dataset + multi-head MuRIL model class
-
-**Tasks:**
-- Implement `EmotionDataset` (PyTorch Dataset class):
-  ```python
-  class EmotionDataset(Dataset):
-      def __init__(self, df, tokenizer, max_len=128):
-          self.texts  = df["input_text"].tolist()    # context + utterance
-          self.labels = df["label"].map(LABEL2ID).tolist()
-          self.tokenizer = tokenizer
-          self.max_len = max_len
-
-      def __getitem__(self, idx):
-          enc = self.tokenizer(
-              self.texts[idx],
-              truncation=True, padding="max_length",
-              max_length=self.max_len, return_tensors="pt"
-          )
-          return {
-              "input_ids":      enc["input_ids"].squeeze(),
-              "attention_mask": enc["attention_mask"].squeeze(),
-              "label":          torch.tensor(self.labels[idx])
-          }
-  ```
-- Implement `MultiTaskMuRIL` with 3 heads:
-  ```python
-  class MultiTaskMuRIL(nn.Module):
-      def __init__(self):
-          super().__init__()
-          self.encoder = AutoModel.from_pretrained("google/muril-base-cased")
-          self.emotion_head   = nn.Linear(768, 6)   # EmoInHindi
-          self.sentiment_head = nn.Linear(768, 3)   # IndicSentiment (pos/neu/neg)
-          self.intent_head    = nn.Linear(768, 6)   # BFSI intents
-
-      def forward(self, input_ids, attention_mask):
-          out = self.encoder(input_ids, attention_mask).pooler_output
-          return {
-              "emotion":   self.emotion_head(out),
-              "sentiment": self.sentiment_head(out),
-              "intent":    self.intent_head(out),
-          }
-  ```
-- Compute inverse-frequency class weights for emotion head
-- Verify model forward pass works on a single batch
-
-**Deliverable:** `EmotionDataset` + `MultiTaskMuRIL` with confirmed forward pass
-
----
-
-### Day 16 — MuRIL Training Run
-
-**Goal:** Fine-tune on EmoInHindi (emotion head) + IndicSentiment (sentiment head)
-
-**Tasks:**
-- Training loop with:
-  - AdamW optimizer, lr=2e-5, weight decay=0.01
-  - Linear warmup scheduler (10% of steps)
-  - Gradient checkpointing if VRAM tight on RTX 2050
-  - Batch size 16, 5 epochs
+### 🔴 Day 16 — MuRIL Training Loop (NOT DONE)
+**What needs to be built:**
+- `sentiment/models/trainer.py` — full training loop:
+  - AdamW optimizer (lr=2e-5, weight_decay=0.01)
+  - Linear warmup scheduler (10% warmup steps)
   - Weighted CrossEntropyLoss for emotion head
-  - Save best checkpoint by validation emotion macro-F1
-- Log per-epoch: train loss, val loss, val accuracy, val macro-F1
-- Start training before sleep — ~45–60 min on RTX 2050
+  - MSE loss for intensity head
+  - Mixed-precision (AMP) if GPU available
+  - Gradient checkpointing for RTX 2050 VRAM constraints
+  - Batch size 16, 5 epochs
+  - Early stopping on validation macro-F1
+  - Checkpoint saving (best by val macro-F1)
+- Training metrics logging → CSV
+- Expected: val_macro_f1 ≈ 0.72–0.74 by epoch 5
 
-**Expected results:**
-```
-Epoch 1: val_macro_f1 ≈ 0.55
-Epoch 3: val_macro_f1 ≈ 0.68
-Epoch 5: val_macro_f1 ≈ 0.72–0.74
-```
-
-**Per-class expected F1 (from EmoInHindi paper baseline of 66.24%):**
-```
-anger:     ~0.80  (most data, most distinct)
-sadness:   ~0.74
-fear:      ~0.72
-happiness: ~0.70
-neutral:   ~0.78
-disgust:   ~0.62  (least data)
-```
-
-**Deliverable:** Saved `muril_emotion_best.pt` checkpoint + training curves CSV
-
----
-
-### Day 17 — Fusion Layer + Compliance Engine
-
-**Goal:** Combine acoustic + text branches + build compliance rule engine
-
-**Tasks:**
-- Implement `fusion_layer.py` with confidence-gated fusion:
-  ```python
-  def fuse(text_emotion, text_conf, acoustic_emotion, acoustic_conf):
-      if text_conf > 0.70:
-          return text_emotion           # text is certain → trust it
-      elif acoustic_conf > 0.65:
-          return acoustic_emotion       # acoustic is certain
-      else:
-          # neither confident → weighted blend
-          scores = 0.55 * text_scores + 0.45 * acoustic_scores
-          return argmax(scores)
-  ```
-- Implement `compliance_engine.py` from scratch:
+### 🔴 Day 17 — Fusion Layer + Compliance Engine (NOT DONE)
+**What needs to be built:**
+- `sentiment/fusion_layer.py`:
+  - Confidence-gated fusion: text_conf > 0.70 → trust text, acoustic_conf > 0.65 → trust acoustic, else weighted blend (0.55 text + 0.45 acoustic)
+- `sentiment/compliance_engine.py`:
   - RBI/IRDAI violation regex patterns (Hindi + English)
   - Abusive language keyword list
-  - Levenshtein distance (DP, from scratch):
-    ```python
-    def levenshtein(s1, s2):
-        dp = [[0]*(len(s2)+1) for _ in range(len(s1)+1)]
-        for i in range(len(s1)+1): dp[i][0] = i
-        for j in range(len(s2)+1): dp[0][j] = j
-        for i in range(1,len(s1)+1):
-            for j in range(1,len(s2)+1):
-                dp[i][j] = dp[i-1][j-1] if s1[i-1]==s2[j-1] else                             1+min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
-        return dp[-1][-1]
-    ```
+  - Levenshtein distance (DP from scratch)
   - Fuzzy match: flag if Levenshtein ≤ 2 against violation keywords
 
-**Deliverable:** `FusionLayer` + `ComplianceEngine` classes tested on sample transcripts
-
----
-
-### Day 18 — QA Scoring Formula + CRM Note Generator
-
-**Goal:** Compute per-agent quality score + auto-generate CRM notes
-
-**Tasks:**
-- Implement `qa_scorer.py` with configurable weighted formula:
-  ```python
-  score = (
-      0.30 * avg_customer_sentiment_score    +  # 0–1, higher = happier customer
-      0.25 * (1 - compliance_flag_ratio)     +  # 0 flags = perfect
-      0.20 * agent_sentiment_stability       +  # low variance in agent emotion
-      0.15 * intent_resolution_rate          +  # did intent get resolved?
-      0.10 * talk_ratio_score                   # agent:customer ~50:50 is ideal
-  )
-  # score → 0–100, grade: A(85+) B(70+) C(55+) D(<55)
+### 🔴 Day 18 — QA Scoring + CRM Note Generator (NOT DONE)
+**What needs to be built:**
+- `sentiment/qa_scorer.py`:
   ```
-  - Weights in `config.yaml` (easily tunable)
-- Implement `crm_note_generator.py` using Gemini 1.5 Flash free API:
+  score = 0.30 * customer_sentiment + 0.25 * (1 - compliance_ratio)
+        + 0.20 * agent_stability + 0.15 * intent_resolution + 0.10 * talk_ratio
+  ```
+  - Grade: A(85+) B(70+) C(55+) D(<55)
+  - Configurable weights in YAML
+- `sentiment/crm_note_generator.py`:
+  - Gemini 1.5 Flash API (primary) or TF-IDF extractive summarizer (fallback)
   - Input: transcript + emotion timeline + intent + compliance flags
-  - Prompt: "Generate a 3-sentence professional CRM note from this Hindi call transcript..."
-  - Fallback: TF-IDF extractive summarizer (no API needed)
 
-**Deliverable:** QA score + CRM note generated for each of 10 test calls
-
----
-
-### Day 19 — Part 3 Integration + End-to-End Test
-
-**Goal:** Wire all Part 3 components into `SentimentPipeline`, run full chain
-
-**Tasks:**
-- Create `SentimentPipeline` class consuming Part 2 output
-- Run full Part 1 → Part 2 → Part 3 chain on all 10 test calls
-- Verify emotion timelines look reasonable per call
-- Log all outputs to MongoDB (local Docker instance)
-- Write `README_part3.md` with methodology, citing all 4 papers:
-  - Schewski et al. PLOS ONE 2025
-  - Yildirim et al. INTERSPEECH 2004
-  - Cao et al. Speech Prosody 2014
-  - Singh et al. (EmoInHindi) LREC 2022
-
-**Deliverable:** Full 3-part chain end-to-end, outputs in MongoDB
+### 🔴 Day 19 — SentimentPipeline Integration (NOT DONE)
+**What needs to be built:**
+- `sentiment/pipeline.py` — `SentimentPipeline` class:
+  - Consumes Part 2 output (segments with speaker labels)
+  - Runs: acoustic emotion classification → STT → MuRIL text classification → fusion → compliance → QA scoring
+  - Returns per-segment emotion timeline + per-call QA summary
+- End-to-end test on all 10 sample calls
+- Write `README_part3.md` with paper citations
 
 ---
 
-## Integration + Polish (Days 20–25)
+## Integration + Polish 🔴 NOT STARTED
 
-### Day 20 — FastAPI Backend
-
-**Goal:** Expose the pipeline as a production-ready REST API
-
-**Routes:**
-```
-POST /calls/upload           → accept audio file, return job_id
-GET  /calls/{job_id}/status  → poll for completion
-GET  /calls/{job_id}/results → full analysis JSON
-GET  /dashboard/agent/{id}   → agent QA summary (last 30 calls)
-GET  /dashboard/overview     → all agents ranked by score
-```
-
-**Tasks:**
-- FastAPI async endpoints + background tasks for pipeline execution
-- JWT authentication middleware (simple HS256 token)
-- Pydantic response models for all endpoints
-- `/health` endpoint for Docker health checks
-
-**Deliverable:** FastAPI server running locally with all routes returning valid responses
-
----
-
-### Day 21 — Celery + RabbitMQ Queue
-
-**Goal:** Decouple API from pipeline with async task queue
-
-**Tasks:**
-- Set up RabbitMQ via Docker: `docker run -d rabbitmq:3-management`
-- Implement `publisher.py` — push audio job to queue on upload
-- Implement `consumer.py` — Celery worker picks up job, runs pipeline
-- Chain tasks: `denoise.s() | diarize.s() | analyze_sentiment.s()`
-- Test: upload audio → appears in RabbitMQ queue → worker processes → result in MongoDB
-
-**Deliverable:** Async pipeline fully functional via message queue
-
----
-
-### Day 22 — MongoDB Schema + Redis Cache
-
-**Goal:** Persist all results, cache dashboard queries
-
-**Tasks:**
-- MongoDB document schemas:
+### 🔴 Day 20 — FastAPI Backend
+**What needs to be built:**
+- `backend/main.py` — FastAPI async endpoints:
   ```
-  Call:    {call_id, timestamp, duration, agent_id, qa_score, grade}
-  Segment: {call_id, speaker, start, end, transcript, emotion, confidence}
-  Agent:   {agent_id, avg_score, call_count, emotion_distribution}
+  POST /calls/upload           → accept audio file, return job_id
+  GET  /calls/{job_id}/status  → poll for completion
+  GET  /calls/{job_id}/results → full analysis JSON
+  GET  /dashboard/agent/{id}   → agent QA summary
+  GET  /dashboard/overview     → all agents ranked by score
   ```
-- Save full analysis per call to MongoDB
-- Redis cache for `GET /dashboard/agent/{id}` — TTL 5 minutes
-- Rolling 30-call window for agent QA score tracker
+- JWT authentication middleware (HS256)
+- Pydantic response models
+- `/health` endpoint
+- Replace current `http.server` dashboard with FastAPI
 
-**Deliverable:** Full persistence layer with Redis caching working
+### 🔴 Day 21 — Celery + Task Queue
+**What needs to be built:**
+- Celery + RabbitMQ for async pipeline execution
+- Task chain: `denoise → diarize → analyze_sentiment`
+- Background job processing with status polling
 
----
+### 🔴 Day 22 — Database + Caching
+**What needs to be built:**
+- MongoDB document schemas (Call, Segment, Agent)
+- Full analysis persistence per call
+- Redis cache for dashboard queries (TTL 5 min)
+- Rolling 30-call window for agent QA tracking
 
-### Day 23 — Docker Compose Setup
+### 🔴 Day 23 — Docker Compose
+**What needs to be built:**
+- `Dockerfile` for API + worker
+- `docker-compose.yml`: api, worker, rabbitmq, mongodb, redis
+- `.env` for API keys and connection strings
+- Health checks, horizontal scaling
 
-**Goal:** Single-command full system deployment
+### 🔴 Day 24 — README + Documentation
+**What needs to be built:**
+- Professional README with architecture diagram, benchmark tables, sample output JSON
+- Methodology section citing all papers
+- Setup instructions: `git clone → docker-compose up`
 
-**`docker-compose.yml` services:**
-```yaml
-services:
-  api:       FastAPI container (port 8000)
-  worker:    Celery worker container
-  rabbitmq:  Message broker (port 5672, management 15672)
-  mongodb:   Database (port 27017)
-  redis:     Cache (port 6379)
-```
-
-**Tasks:**
-- `Dockerfile` for API + worker (shared base image)
-- `docker-compose.yml` with proper networking + health checks
-- Environment variables via `.env` file (API keys, DB connection strings)
-- Test: `docker-compose up` → full system live
-- Verify: `docker-compose up --scale worker=3` works for horizontal scaling
-
-**Deliverable:** `docker-compose up` starts entire system from cold
-
----
-
-### Day 24 — README + Architecture Diagram
-
-**Goal:** Professional GitHub README that tells the whole story
-
-**README Sections:**
-1. Project title + one-line description
-2. Architecture diagram (ASCII block diagram)
-3. Part-by-part description with "built from scratch" highlights:
-   - High-pass Butterworth filter
-   - IIR notch filter
-   - RMS compressor
-   - Wiener denoiser
-   - MFCC extractor
-   - LPC formant estimator
-4. Audio Enhancement section — 50 Hz notch filter, highpass rumble removal, dynamic compression (built from scratch)
-   - Benchmark table showing 50 Hz hum reduction: 20+ dB
-4. Dataset section — EmoInHindi citation + Kaggle Hindi Call Center + Vaani/IISc
-5. Research papers cited (all 4, with links)
-6. Setup: `git clone → docker-compose up`
-7. Sample output JSON (real output from your test calls)
-8. Benchmark table (SNR improvement, diarization accuracy, emotion F1)
-9. Known limitations (acted vs spontaneous speech, fear/anxiety acoustic detection)
-10. Future work (multilingual, real-time streaming, zkML sentiment proofs)
-
-**Deliverable:** `README.md` that makes a hiring manager want to run the project
-
----
-
-### Day 25 — Final Testing + Demo Video
-
-**Goal:** End-to-end validation, demo recording, GitHub push
-
-**Tasks:**
-- Run 20 calls through full pipeline — zero crashes required
-- Record 3-minute demo:
-  - 00:00–00:45 — raw noisy audio → denoised output (audible difference)
-  - 00:45–01:30 — diarization separating agent/customer timeline
-  - 01:30–02:15 — emotion timeline visualization per speaker
-  - 02:15–03:00 — dashboard API response showing QA score + CRM note
-- Push to GitHub with clean commit history
-- Link demo video in README
-
-**Deliverable:** Public GitHub repo live with demo video
+### 🔴 Day 25 — Final Testing + Demo
+**What needs to be built:**
+- 20-call zero-crash validation
+- 3-minute demo video
+- GitHub push with clean history
 
 ---
 
 ## Summary
 
-| Part | Days | Hardest Day | Key Components |
+| Part | Status | Days | Key Components |
 |---|---|---|---|
-| Denoising + Enhancement | 1–5 | Day 4 (Wiener filter) | SNR calculator, NOTCH filter, high-pass, compressor, Wiener denoiser, VAD |
-| Diarization | 6–11 | Day 10 (Formants) | MFCC, formants, cosine fingerprinter |
-| Sentiment | 12–19 | Day 16 (MuRIL training) | EmoInHindi preprocessing, V-A classifier, Levenshtein |
-| Integration | 20–25 | Day 21 (queue architecture) | FastAPI, Celery, Docker Compose |
-| **Total** | **25 days** | | **Custom integration of standard DSP & ML tools** |
+| Denoising + Enhancement | ✅ Complete | 1–5 | Butterworth HPF, IIR notch, compressor, declipper, Wiener denoiser, SNR calculator |
+| Diarization + Profiling | ✅ Complete | 6–11 | pyannote 3.1, SpeechBrain ECAPA-TDNN, silhouette confidence, Viterbi decoder, change detector |
+| Sentiment Analysis | 🔶 60% | 12–19 | EmoInHindi preprocessing, acoustic classifier, Whisper STT, MuRIL architecture (training TBD) |
+| Integration + Polish | 🔴 0% | 20–25 | FastAPI, Celery, MongoDB, Docker Compose |
+
+### Completed Components (20 files)
+```
+denoising/audio_loader.py          denoising/pipeline.py
+denoising/snr_calculator.py        denoising/enhancement_pipeline.py
+denoising/clipping_detector.py     denoising/highpass_filter.py
+denoising/silence_ratio.py         denoising/notch_filter.py
+denoising/vad_basic.py             denoising/compressor.py
+denoising/declipper.py             denoising/spectral_denoiser.py
+diarization/pipeline.py            diarization/speaker_embedder.py
+diarization/change_detector.py     diarization/confidence.py
+diarization/dashboard_server.py    sentiment/preprocessing/prepare_emoin_hindi.py
+sentiment/acoustic_emotion/delta_normalizer.py
+sentiment/acoustic_emotion/acoustic_emotion_classifier.py
+sentiment/stt/stt_transcriber.py
+sentiment/models/dataset.py        sentiment/models/muril_model.py
+```
+
+### Remaining Work (priority order)
+1. **SentimentPipeline** — wire acoustic + text branches into end-to-end sentiment analysis
+2. **MuRIL Training** — training loop, checkpointing, evaluation metrics
+3. **Fusion Layer** — confidence-gated acoustic+text fusion
+4. **Compliance Engine** — RBI/IRDAI regex, abusive language detection, Levenshtein fuzzy match
+5. **QA Scoring** — weighted formula producing per-call grades
+6. **CRM Note Generator** — Gemini API or TF-IDF fallback
+7. **FastAPI Backend** — replace http.server with proper async API
+8. **Dashboard UI** — enhance existing HTML dashboard with emotion timelines + QA scores
+9. **Docker Compose** — containerized deployment
+10. **Documentation** — comprehensive README with benchmarks
 
 ---
 
-## Dataset Citations (Use in README + Resume)
+## Dataset Citations
 
 ```
 EmoInHindi (LREC 2022) — IIT Patna
@@ -703,19 +349,27 @@ Vaani Corpus — IISc Bangalore (Gnani.ai's academic partner)
 
 ---
 
-## Daily Time Budget (3–4 hrs/day)
+## Architecture Notes
 
-| Block | Activity |
-|---|---|
-| First 30 min | Review previous day, fix leftover issues |
-| Next 2 hrs | Main implementation task |
-| Next 45 min | Unit tests + validation on real audio |
-| Last 15 min | Git commit + one-line note on what was learned |
+### Why pyannote + SpeechBrain instead of custom DSP diarization?
+
+The original roadmap planned a handcrafted pipeline: MFCC extraction → LPC formant estimation → cosine fingerprinting → rolling baseline updates. During implementation, this was replaced with:
+
+1. **pyannote/speaker-diarization-3.1** — state-of-the-art neural diarization model, handles overlapping speech, varying recording conditions, and accent diversity far better than cosine similarity on handcrafted features
+2. **SpeechBrain ECAPA-TDNN** — neural speaker embeddings that outperform MFCC+formant fingerprints by a large margin on speaker verification benchmarks
+3. **Sklearn silhouette scoring** — principled embedding-based confidence instead of ad-hoc "similarity difference < 0.05" thresholds
+
+The custom components (MFCC extractor, prosodic extractor, LPC formant estimator, pause segmenter, speaker fingerprinter, speaker assigner, baseline builder) were committed earlier in the git history but are no longer imported by the active pipeline. They remain in the codebase as reference implementations.
+
+The key additions over pyannote's default output are:
+- **Merged turn splitting** — detects when pyannote assigns both speakers to one long turn
+- **Single-speaker detection** — handles mono-speaker calls without false splits
+- **Viterbi sequence decoding** — smooths ambiguous regions using transition priors
+- **Rolling separability curve** — identifies time regions where speaker separation is unreliable
+- **False split merging** — ML classifier trained to distinguish real speaker changes from over-segmentation
 
 ---
 
-## Minimum Viable Checkpoint — Day 11
+## Minimum Viable Checkpoint — REACHED ✅
 
-Days 1–11 = fully working denoising + diarization pipeline with benchmarks.
-This alone outperforms the average intern-level project in India.
-If your application deadline hits before Day 19, push at Day 11, label Part 3 as "in progress."
+Parts 1 + 2 are fully functional: raw audio → denoised audio → diarized segments with confidence scores + talk ratios + web dashboard. This is a deployable proof-of-concept.
