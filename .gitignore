@@ -18,6 +18,7 @@ data/research_papers
 sentiment/data/*.csv
 whisper-hindi/
 muril-base/
+sentiment/models/checkpoints/
 
 
 # Root level reports/metadata
