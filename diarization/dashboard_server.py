@@ -260,44 +260,35 @@ def api_text_emotion(handler, filename):
 
 def api_compliance(handler, filename):
     c = _ensure_cache(filename)
-    if "compliance" in c:
-        return c["compliance"]
-
-    if not c.get("emotion_analyzed"):
-        api_text_emotion(handler, filename)
-
-    from sentiment.compliance_engine import analyze_call
-    c["compliance"] = analyze_call(c["segments"])
-    return c["compliance"]
+    if "compliance" not in c:
+        if not c.get("emotion_analyzed"):
+            api_text_emotion(handler, filename)
+        from sentiment.compliance_engine import analyze_call
+        c["compliance"] = analyze_call(c["segments"])
+    return {"compliance": c["compliance"]}
 
 
 def api_qa_score(handler, filename):
     c = _ensure_cache(filename)
-    if "qa" in c:
-        return c["qa"]
-
     if "compliance" not in c:
         api_compliance(handler, filename)
     if "fusion" not in c:
         api_text_emotion(handler, filename)
-
-    from sentiment.qa_scorer import score_call
-    c["qa"] = score_call(c["segments"], c["fusion"], c["compliance"])
-    return c["qa"]
+    if "qa" not in c:
+        from sentiment.qa_scorer import score_call
+        c["qa"] = score_call(c["segments"], c["fusion"], c["compliance"])
+    return {"qa": c["qa"]}
 
 
 def api_crm_note(handler, filename):
     c = _ensure_cache(filename)
-    if "crm_note" in c:
-        return c["crm_note"]
-
     if "qa" not in c:
         api_qa_score(handler, filename)
-
-    from sentiment.crm_note_generator import generate_crm_note
-    transcript = " ".join(s.get("text", "") for s in c["segments"] if s.get("text"))
-    c["crm_note"] = generate_crm_note(transcript, c["fusion"], c["compliance"], c["qa"])
-    return c["crm_note"]
+    if "crm_note" not in c:
+        from sentiment.crm_note_generator import generate_crm_note
+        transcript = " ".join(s.get("text", "") for s in c["segments"] if s.get("text"))
+        c["crm_note"] = generate_crm_note(transcript, c["fusion"], c["compliance"], c["qa"])
+    return {"crm_note": c["crm_note"]}
 
 
 def api_full(handler, filename):
