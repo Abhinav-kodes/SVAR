@@ -1,0 +1,16 @@
+# Training config for WavLM audio emotion model
+# Run: python -m scripts.train_wavlm --config configs/train_wavlm.yaml
+
+model_name: "microsoft/wavlm-base-plus"
+num_emotions: 16
+
+# Training
+epochs: 30
+batch_size: 8
+learning_rate: 1.0e-5
+dropout: 0.20
+freeze_base: true
+
+# Data
+train_data_dir: "data/audio_segments/train"
+output_dir: "checkpoints/wavlm_emotion"

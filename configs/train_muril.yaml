@@ -1,0 +1,29 @@
+# Training config for Contextual MuRIL emotion model
+# Run: python -m scripts.train_muril --config configs/train_muril.yaml
+
+model_name: "google/muril-base-cased"
+num_emotions: 16
+num_sentiments: 3
+num_interaction_states: 5
+num_conduct_risks: 5
+
+# Training
+epochs: 20
+batch_size: 16
+learning_rate: 2.0e-5
+weight_decay: 0.01
+dropout: 0.20
+freeze_base_layers: 6
+patience: 5
+
+# Loss weights
+loss_weights:
+  emotion: 1.0
+  intensity: 0.3
+  sentiment: 0.5
+  interaction_state: 0.5
+  conduct_risk: 0.3
+
+# Data
+data_config: "configs/data_paths.yaml"
+output_dir: "checkpoints/muril_emotion"
