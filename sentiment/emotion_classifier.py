@@ -26,12 +26,12 @@ TRANSLATION_MODEL = "Helsinki-NLP/opus-mt-hi-en"
 
 LABEL_MAP = {
     "anger": ("anger", "negative"),
-    "disgust": ("disgust", "negative"),
+    "disgust": ("disgusted", "negative"),
     "fear": ("fear", "negative"),
-    "joy": ("happiness", "positive"),
+    "joy": ("joy", "positive"),
     "neutral": ("neutral", "neutral"),
-    "sadness": ("sadness", "negative"),
-    "surprise": ("surprise", "neutral"),
+    "sadness": ("sad", "negative"),
+    "surprise": ("surprised", "neutral"),
 }
 
 

@@ -9,11 +9,22 @@ ACOUSTIC_WEIGHT = 0.45
 
 EMOTION_TO_SENTIMENT = {
     "anger": "negative",
-    "sadness": "negative",
+    "sad": "negative",
     "fear": "negative",
-    "disgust": "negative",
-    "happiness": "positive",
+    "disgusted": "negative",
+    "joy": "positive",
     "neutral": "neutral",
+    "surprised": "neutral",
+    "annoyed": "negative",
+    "anticipation": "neutral",
+    "confident": "positive",
+    "hopeful": "positive",
+    "compassion": "positive",
+    "apprehensive": "negative",
+    "grateful": "positive",
+    "guilty": "negative",
+    "impressed": "positive",
+    "uncertain": "neutral",
 }
 
 SENTIMENT_SCORES = {"negative": -1.0, "neutral": 0.0, "positive": 1.0}

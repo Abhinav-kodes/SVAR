@@ -61,7 +61,7 @@ class TestAcousticEmotionClassifier(unittest.TestCase):
         self.assertGreater(result["confidence"], 0.15)
 
     def test_classify_sadness_profile(self):
-        """Test low pitch, low energy, slow rate delta maps to sadness."""
+        """Test low pitch, low energy, slow rate delta maps to sad."""
         sadness_deltas = {
             "pitch_d": -2.0,
             "energy_d": -2.0,
@@ -72,7 +72,7 @@ class TestAcousticEmotionClassifier(unittest.TestCase):
 
         result = classify_acoustic_emotion(sadness_deltas, hif0_section="beginning")
 
-        self.assertEqual(result["emotion"], "sadness")
+        self.assertEqual(result["emotion"], "sad")
         self.assertFalse(result["indeterminate"])
 
 

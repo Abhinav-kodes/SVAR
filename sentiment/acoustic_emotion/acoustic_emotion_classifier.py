@@ -11,7 +11,7 @@ EMOTION_PROFILES = {
         "pause_r": -2.0,
         "hif0": "middle"
     },
-    "sadness": {
+    "sad": {
         "pitch_d": -2.0,
         "energy_d": -2.0,
         "rate_d": -2.0,
@@ -19,7 +19,7 @@ EMOTION_PROFILES = {
         "pause_r": +2.0,
         "hif0": "beginning"
     },
-    "happiness": {
+    "joy": {
         "pitch_d": +1.5,
         "energy_d": +1.0,
         "rate_d": +1.0,
@@ -43,22 +43,30 @@ EMOTION_PROFILES = {
         "pause_r": 0.0,
         "hif0": "beginning"
     },
-    "stress": {
-        "pitch_d": +1.0,
-        "energy_d": +1.0,
-        "rate_d": +0.5,
-        "jitter_d": +1.5,
-        "pause_r": -0.5,
-        "hif0": "middle"
-    },
-    "disgust": {
+    "disgusted": {
         "pitch_d": -0.5,
         "energy_d": 0.0,
         "rate_d": -0.5,
         "jitter_d": +0.5,
         "pause_r": 0.0,
         "hif0": "beginning"
-    }
+    },
+    "surprised": {
+        "pitch_d": +2.0,
+        "energy_d": +1.5,
+        "rate_d": +0.5,
+        "jitter_d": +0.5,
+        "pause_r": -1.0,
+        "hif0": "end"
+    },
+    "annoyed": {
+        "pitch_d": +0.5,
+        "energy_d": +0.5,
+        "rate_d": +0.5,
+        "jitter_d": +0.5,
+        "pause_r": -0.5,
+        "hif0": "middle"
+    },
 }
 
 
@@ -79,7 +87,7 @@ def classify_acoustic_emotion(
 
     Returns:
         Dict containing:
-            - 'emotion': predicted emotion string ('anger', 'sadness', etc.)
+            - 'emotion': predicted emotion string ('anger', 'sad', 'joy', etc.)
             - 'confidence': float score
             - 'indeterminate': bool flag
             - 'all_scores': dict mapping emotion names to normalized probability scores
