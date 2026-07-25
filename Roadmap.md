@@ -132,7 +132,7 @@ All components implemented, tested, and benchmarked. Benchmarked on 3 sample cal
 
 ---
 
-## Part 3 — Emotion Analysis (Contextual Multimodal) ✅ 90% COMPLETE
+## Part 3 — Emotion Analysis (Contextual Multimodal) ✅ 95% COMPLETE
 
 > **Architecture Evolution:** The original plan used DistilRoBERTa as the text backbone. The implementation uses **Contextual MuRIL** (237M params, 6-task multi-head) + **WavLM** audio encoder + **speaker-normalized acoustic baselines** + **learned gated fusion** + **temperature calibration**. The old `sentiment/` pipeline (DistilRoBERTa fallback) is retained for production use when no trained svar checkpoint exists.
 
@@ -257,6 +257,42 @@ All components implemented, tested, and benchmarked. Benchmarked on 3 sample cal
 - `sentiment/fusion_layer.py` — EMOTION_TO_SENTIMENT updated for full 16 classes
 - `sentiment/acoustic_emotion/acoustic_emotion_classifier.py` — EMOTION_PROFILES updated: removed "stress", renamed to canonical names
 
+### ✅ Compliance Engine (Commit `ed5ff00`, `93fb8cc`)
+- `sentiment/compliance_engine.py`:
+  - RBI/IRDAI violation regex patterns (Hindi + English)
+  - 30+ Hindi abusive keywords (मादरचोद, बहनचोद, भोसड़ी, घटिया, कुत्ते, लौड़े, etc.)
+  - Compound Hindi abuse phrase detection (तेरी मां चोद, बहन के लौड़े, कुत्ते की तरह, etc.)
+  - Threat/harassment pattern detection (sexual threats, violence threats)
+  - Levenshtein distance (DP from scratch) for fuzzy match (min word length 5, max distance 2)
+  - Hindi-aware tokenizer (`[\w\u0900-\u097F]+` instead of `\b\w+\b` which breaks on matras)
+  - Per-segment + per-call violation counting (agent vs customer)
+
+### ✅ QA Scorer
+- `sentiment/qa_scorer.py`:
+  - 5-factor weighted scoring:
+    ```
+    score = 0.30 * customer_sentiment + 0.25 * compliance_score
+          + 0.20 * agent_stability + 0.15 * intent_resolution + 0.10 * talk_ratio
+    ```
+  - Grade: A(85+) B(70+) C(55+) D(<55)
+  - Configurable weights in YAML
+  - Agent stability: variance-based (low variance = high score)
+  - Talk ratio: ideal 35-65% agent talk time
+
+### ✅ CRM Note Generator
+- `sentiment/crm_note_generator.py`:
+  - TF-IDF extractive summarizer (no external API needed)
+  - Key points: dominant customer sentiment, agent tone, QA score
+  - Compliance summary: violation count + agent vs customer
+  - Recommended action: auto-generated based on QA grade + violations
+
+### ✅ Sentiment Pipeline Integration
+- `sentiment/pipeline.py` — `SentimentPipeline` class:
+  - Consumes Part 2 output (segments with speaker labels)
+  - Runs: acoustic emotion → STT → text emotion → fusion → compliance → QA → CRM
+  - Returns per-segment emotion timeline + compliance + QA + CRM note
+  - All components verified working end-to-end
+
 ### 🔴 Remaining: Training + Checkpoints
 - No trained models exist yet — architecture complete but needs:
   1. Download + process EmoInHindi dataset → `python -m svar.data.prepare_emoinhindi`
@@ -346,7 +382,8 @@ All components implemented, tested, and benchmarked. Benchmarked on 3 sample cal
 |---|---|---|---|
 | Denoising + Enhancement | ✅ Complete | 1–5 | Butterworth HPF, IIR notch, compressor, declipper, Wiener denoiser, SNR calculator |
 | Diarization + Profiling | ✅ Complete | 6–11 | pyannote 3.1, SpeechBrain ECAPA-TDNN, silhouette confidence, Viterbi decoder, change detector |
-| Emotion Analysis | ✅ 90% | 12–19 | svar/ package: 16-class taxonomy, contextual MuRIL, WavLM, acoustic baselines, trajectory model, learned fusion, calibration |
+| Emotion Analysis | ✅ 95% | 12–19 | svar/ package: 16-class taxonomy, contextual MuRIL, WavLM, acoustic baselines, trajectory model, learned fusion, calibration |
+| Compliance + QA + CRM | ✅ Complete | — | Hindi abuse lexicon (30+ words), compound phrases, threat detection, RBI/IRDAI regex, Levenshtein fuzzy, 5-factor QA scoring, TF-IDF CRM notes |
 | Dashboard + Integration | 🔶 75% | — | 10-tab dashboard, lazy APIs, emotion chips, Google Cloud STT |
 | Integration + Polish | 🔴 0% | 20–25 | FastAPI, Celery, MongoDB, Docker Compose |
 
@@ -462,8 +499,10 @@ The key additions over pyannote's default output are:
 
 ---
 
-## Commits (11 total)
+## Commits (13 total)
 ```
+93fb8cc compliance: remove hell/damn/crap from English abuse list
+ed5ff00 compliance: expand Hindi abuse lexicon, compound patterns, threat detection
 2e56379 fusion: neutral-override when text=neutral but acoustic disagrees
 f06bbee data: add init
 d96ddb5 dashboard: EmoInHindi 16-class emotion chip CSS + uncertain style
@@ -486,3 +525,7 @@ Parts 1 + 2 are fully functional: raw audio → denoised audio → diarized segm
 ## Emotion Analysis Checkpoint — REACHED ✅
 
 Part 3 architecture is complete: schemas, calibration, turn repair, context builder, models (contextual MuRIL, WavLM, fusion, temporal), acoustic baselines + trajectory, training pipeline, evaluation. Ready for training once EmoInHindi data is downloaded and processed.
+
+## Compliance + QA + CRM Checkpoint — REACHED ✅
+
+Full compliance engine with Hindi abuse lexicon (30+ words), compound phrase detection, threat/harassment patterns, RBI/IRDAI regex, Levenshtein fuzzy matching. QA scorer with 5-factor weighted scoring (customer sentiment, compliance, agent stability, intent resolution, talk ratio). CRM note generator with TF-IDF extractive summarization. All wired into dashboard with 10-tab UI.
