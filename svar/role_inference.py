@@ -140,6 +140,12 @@ class RoleInferenceEngine:
                         method="heuristic",
                         applied=True,
                     )
+                fallback = {spk_speakers[0]: "agent", spk_speakers[1]: "customer"}
+                return RoleResolution(
+                    role_mapping=fallback,
+                    method="fallback",
+                    applied=True,
+                )
 
             return RoleResolution(
                 role_mapping=mapping,
