@@ -24,9 +24,7 @@ _denoiser = None
 _diarizer = None
 _stt = None
 _acoustic_pipeline = None
-_muril_model = None
-_muril_tokenizer = None
-_device = "cpu"
+_emotion_classifier = None
 
 
 def log(msg: str):
@@ -69,55 +67,14 @@ def _get_acoustic():
     return _acoustic_pipeline
 
 
-def _get_muril():
-    global _muril_model, _muril_tokenizer, _device
-    if _muril_model is not None:
-        return _muril_model, _muril_tokenizer, _device
-    import torch
-    from sentiment.models.muril_model import MultiTaskMuRIL
-    from transformers import AutoTokenizer
-
-    checkpoint_path = os.path.join(REPO_ROOT, "sentiment", "models", "checkpoints", "best_model.pt")
-    if not os.path.exists(checkpoint_path):
-        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
-
-    if _stt is not None and hasattr(_stt, 'model') and _stt.model is not None:
-        try:
-            del _stt.model
-            _stt.model = None
-        except Exception:
-            pass
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-
-    free_vram_gb = torch.cuda.mem_get_info()[0] / 1e9 if torch.cuda.is_available() else 0
-    log(f"Loading MuRIL model... (free VRAM: {free_vram_gb:.2f} GB)")
-    _device = "cuda" if free_vram_gb >= 0.8 else "cpu"
-    try:
-        model = MultiTaskMuRIL()
-        state = torch.load(checkpoint_path, map_location=_device, weights_only=False)
-        sd = state.get("model_state_dict", state) if isinstance(state, dict) else state
-        model.load_state_dict(sd, strict=False)
-        model = model.to(_device).eval()
-        _muril_model = model
-        _muril_tokenizer = AutoTokenizer.from_pretrained(model.model_name)
-        log(f"MuRIL loaded on {_device}")
-    except Exception as e:
-        log(f"MuRIL GPU load failed: {e}. Loading on CPU...")
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        _device = "cpu"
-        model = MultiTaskMuRIL()
-        state = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-        sd = state.get("model_state_dict", state) if isinstance(state, dict) else state
-        model.load_state_dict(sd, strict=False)
-        model = model.to("cpu").eval()
-        _muril_model = model
-        _muril_tokenizer = AutoTokenizer.from_pretrained(model.model_name)
-        log(f"MuRIL loaded on CPU")
-    return _muril_model, _muril_tokenizer, _device
+def _get_emotion_classifier():
+    global _emotion_classifier
+    if _emotion_classifier is not None:
+        return _emotion_classifier
+    from sentiment.emotion_classifier import classify_emotions_batch, _load_model
+    _load_model()
+    _emotion_classifier = classify_emotions_batch
+    return _emotion_classifier
 
 
 def _ensure_cache(filename):
@@ -244,32 +201,19 @@ def api_text_emotion(handler, filename):
         api_transcribe(handler, filename)
 
     t0 = time.time()
-    model, tokenizer, device = _get_muril()
-    from sentiment.models.dataset import EMOTION_ID2LABEL, SENTIMENT_ID2LABEL
-    import torch
+    classify_batch = _get_emotion_classifier()
+
+    texts = [seg.get("text", "") for seg in c["segments"]]
+    batch_results = classify_batch(texts, batch_size=16)
 
     text_results = []
-    for seg in c["segments"]:
-        text = seg.get("text", "")
-        if text.strip():
-            encoding = tokenizer(text, truncation=True, padding="max_length", max_length=64, return_tensors="pt")
-            input_ids = encoding["input_ids"].to(device)
-            attention_mask = encoding["attention_mask"].to(device)
-            with torch.no_grad():
-                outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-            emo_logits = outputs["emotion_logits"][0].cpu().numpy()
-            sent_logits = outputs["sentiment_logits"][0].cpu().numpy()
-            emo_probs = np.exp(emo_logits) / np.sum(np.exp(emo_logits))
-            sent_probs = np.exp(sent_logits) / np.sum(np.exp(sent_logits))
-            emo_idx = int(np.argmax(emo_probs))
-            sent_idx = int(np.argmax(sent_probs))
-            text_results.append({
-                "emotion": EMOTION_ID2LABEL.get(emo_idx, "neutral"),
-                "confidence": float(emo_probs[emo_idx]),
-                "sentiment": SENTIMENT_ID2LABEL.get(sent_idx, "neutral"),
-            })
-        else:
-            text_results.append({"emotion": "neutral", "confidence": 0.0, "sentiment": "neutral"})
+    for i, seg in enumerate(c["segments"]):
+        r = batch_results[i] if i < len(batch_results) else {"emotion": "neutral", "sentiment": "neutral", "confidence": 0.0}
+        text_results.append({
+            "emotion": r["emotion"],
+            "confidence": r["confidence"],
+            "sentiment": r["sentiment"],
+        })
 
     log(f"  Text emotion done ({time.time()-t0:.1f}s)")
 
