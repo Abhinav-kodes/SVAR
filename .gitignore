@@ -11,24 +11,21 @@ __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 
-# Data, Audio & Model Weights
+# Data & Audio
 data/sample_calls/
 data/emotions/
 data/research_papers/
 sentiment/data/*.csv
-whisper-hindi/
+sentiment/data/*.csv.gz
+
+# Model Weights & Binaries
 muril-base/
-sentiment/models/checkpoints/
 *.joblib
 *.pt
 *.pth
 *.onnx
 *.bin
 *.safetensors
-
-# Training artifacts
-train_colab_full.py
-*.csv.gz
 
 # Credentials & secrets
 credentials/
