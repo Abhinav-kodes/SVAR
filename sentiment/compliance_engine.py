@@ -33,8 +33,8 @@ ABUSIVE_KEYWORDS = [
     "घटिया", "लौड़े", "लौंडा", "रंडी", "खोटा", "नालायक", "बेहया",
     "चोर", "झूठा", "धोखेबाज", "कमीने", "साले", "हरामजादे",
     # English abusive
-    "idiot", "stupid", "moron", "damn", "hell", "bastard", "asshole",
-    "bitch", "crap", "fuck", "shit", "dick", "screw you", "shut up",
+    "idiot", "stupid", "moron", "bastard", "asshole",
+    "bitch", "fuck", "shit", "dick", "screw you", "shut up",
     "worthless", "useless", "incompetent",
 ]
 
