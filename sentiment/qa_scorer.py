@@ -20,6 +20,16 @@ GRADE_THRESHOLDS = [
 SENTIMENT_SCORES = {"positive": 1.0, "neutral": 0.5, "negative": 0.0}
 
 
+def _is_agent(speaker: str) -> bool:
+    s = speaker.lower()
+    return "agent" in s or s == "spk_0"
+
+
+def _is_customer(speaker: str) -> bool:
+    s = speaker.lower()
+    return "customer" in s or s == "spk_1"
+
+
 def load_weights(weights_path: Optional[str] = None) -> Dict[str, float]:
     if weights_path and os.path.exists(weights_path):
         with open(weights_path, "r") as f:
@@ -32,7 +42,7 @@ def load_weights(weights_path: Optional[str] = None) -> Dict[str, float]:
 
 def compute_customer_sentiment_score(emotions: List[Dict[str, Any]]) -> float:
     """Average customer sentiment mapped to 0-100."""
-    customer_emotions = [e for e in emotions if "customer" in str(e.get("speaker", "")).lower()]
+    customer_emotions = [e for e in emotions if _is_customer(str(e.get("speaker", "")))]
     if not customer_emotions:
         return 50.0
     scores = []
@@ -56,7 +66,7 @@ def compute_compliance_score(compliance_result: Dict[str, Any]) -> float:
 
 def compute_agent_stability_score(emotions: List[Dict[str, Any]]) -> float:
     """Measure agent emotional consistency — low variance = high score."""
-    agent_emotions = [e for e in emotions if "agent" in str(e.get("speaker", "")).lower()]
+    agent_emotions = [e for e in emotions if _is_agent(str(e.get("speaker", "")))]
     if not agent_emotions:
         return 75.0
     sentiments = [SENTIMENT_SCORES.get(str(e.get("sentiment", "neutral")).lower(), 0.5) for e in agent_emotions]
@@ -85,8 +95,8 @@ def compute_talk_ratio(segments: List[Dict[str, Any]]) -> float:
     customer_time = 0.0
     for seg in segments:
         dur = float(seg.get("end", seg.get("end_time_s", 0))) - float(seg.get("start", seg.get("start_time_s", 0)))
-        speaker = str(seg.get("speaker", "")).lower()
-        if "agent" in speaker:
+        speaker = str(seg.get("speaker", ""))
+        if _is_agent(speaker):
             agent_time += dur
         else:
             customer_time += dur

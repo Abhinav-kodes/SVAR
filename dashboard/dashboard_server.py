@@ -317,7 +317,15 @@ def stage_qa(filename):
     if not c.get("fusion"):
         stage_fusion(filename)
     from sentiment.qa_scorer import score_call
-    c["qa"] = score_call(c["segments"], c["fusion"], c["compliance"])
+    emotions_with_speakers = []
+    for seg in c["segments"]:
+        emotions_with_speakers.append({
+            "speaker": seg.get("speaker", ""),
+            "emotion": seg.get("emotion", "neutral"),
+            "sentiment": seg.get("sentiment", "neutral"),
+            "confidence": seg.get("confidence", 0.0),
+        })
+    c["qa"] = score_call(c["segments"], emotions_with_speakers, c["compliance"])
 
 
 def stage_crm(filename):
