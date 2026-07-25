@@ -213,9 +213,10 @@ class SpeechToTextTranscriber:
             seg_words = seg_word_lists[di]
             text = " ".join(w.get("text", "") for w in seg_words).strip()
 
-            output.append({
+            entry = {
                 "start_time_s": d_start,
                 "end_time_s": d_end,
+                "duration_s": round(d_end - d_start, 6),
                 "text": text,
                 "speaker": dseg.get("speaker", "spk_0"),
                 "words": [
@@ -231,7 +232,11 @@ class SpeechToTextTranscriber:
                     sum(w["probability"] for w in seg_words) / max(len(seg_words), 1), 3
                 ),
                 "no_speech_prob": 0,
-            })
+            }
+            for field in ("confidence", "uncertain", "sb_margin"):
+                if field in dseg:
+                    entry[field] = dseg[field]
+            output.append(entry)
 
         return output
 

@@ -202,6 +202,9 @@ def api_transcribe(handler, filename):
         c["role_resolution"]["confidence"] = resolution.result.confidence
         c["role_resolution"]["status"] = resolution.result.status
         c["role_resolution"]["turns_used"] = resolution.result.turns_used
+    elif resolution.method == "heuristic" and resolution.applied:
+        c["role_resolution"]["confidence"] = 1.0
+        c["role_resolution"]["status"] = "resolved"
     log(f"  Role resolution: {resolution.method} {resolution.role_mapping} ({time.time()-t_role:.1f}s)")
 
     return {

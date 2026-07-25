@@ -505,11 +505,11 @@ function renderDiarization(d){
     const tr = document.createElement('tr');
     tr.id = 'diar-row-'+i;
     tr.onclick = () => { audioPlayer.currentTime = s.start_time_s; audioPlayer.play(); };
-    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${spkLabel(s.speaker)}</span></td><td>${s.start_time_s.toFixed(2)}s</td><td>${s.end_time_s.toFixed(2)}s</td><td>${s.duration_s.toFixed(2)}s</td><td>${(s.confidence*100).toFixed(0)}% ${s.uncertain?'⚠️':'✅'}</td>`;
+    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${spkLabel(s.speaker)}</span></td><td>${s.start_time_s?.toFixed(2)||'--'}s</td><td>${s.end_time_s?.toFixed(2)||'--'}s</td><td>${s.duration_s?.toFixed(2)||'--'}s</td><td>${s.confidence != null ? (s.confidence*100).toFixed(0)+'%' : '--'} ${s.uncertain?'⚠️':'✅'}</td>`;
     tbody.appendChild(tr);
 
     const seg = document.createElement('div');
-    const colorClass = s.speaker === 'spk_0' ? 'agent' : s.speaker === 'spk_1' ? 'customer' : s.speaker;
+    const colorClass = s.speaker === 'agent' ? 'agent' : s.speaker === 'customer' ? 'customer' : s.speaker;
     seg.className = 'tl-seg ' + colorClass;
     seg.dataset.idx = i;
     seg.style.left = (s.start_time_s/dur*100)+'%';

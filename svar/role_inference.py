@@ -156,11 +156,14 @@ class RoleInferenceEngine:
                 applied=bool(heuristic),
             )
 
-    def _heuristic_resolve(self, segments: list, spk_speakers: list) -> dict:
+    def _heuristic_resolve(self, segments: list, spk_speakers: list, max_turns: int = 12) -> dict:
         """Heuristic role resolution based on self-introduction patterns.
 
         Looks for the speaker who introduces themselves as calling from a company
         or mentions job/recruitment keywords — that speaker is the agent.
+
+        Only examines the first ``max_turns`` segments to avoid mid-call false
+        positives (e.g. a customer asking about salary matching the सैलरी pattern).
         """
         import re
 
@@ -172,7 +175,6 @@ class RoleInferenceEngine:
             r"रिक्वायरमेंट|"
             r"सेल[्स]?\s+प्रोफाइल|"
             r"सेलेक्ट\s+होते|"
-            r"सैलरी|"
             r"सैलरी\s+होगा|"
             r"आपको\s+(?:बता|समझा|एक्सप्लेन)|"
             r"सुनो\s+आप\s+पहले|"
@@ -182,8 +184,9 @@ class RoleInferenceEngine:
             re.IGNORECASE,
         )
 
+        intro_segments = segments[:max_turns]
         spk_text = {}
-        for seg in segments:
+        for seg in intro_segments:
             spk = seg.get("speaker", "")
             text = seg.get("text", "")
             if spk.startswith("spk_") and text:
