@@ -71,8 +71,7 @@ def _get_emotion_classifier():
     global _emotion_classifier
     if _emotion_classifier is not None:
         return _emotion_classifier
-    from sentiment.emotion_classifier import classify_emotions_batch, _load_model
-    _load_model()
+    from sentiment.emotion_classifier import classify_emotions_batch
     _emotion_classifier = classify_emotions_batch
     return _emotion_classifier
 
