@@ -11,10 +11,16 @@ from .schemas import AnalysisTurn, ContextInput
 _ROLE_TOKENS = {
     "agent": "[AGENT]",
     "customer": "[CUSTOMER]",
+    "spk_0": "[SPEAKER_A]",
+    "spk_1": "[SPEAKER_B]",
+    "unknown": "[SPEAKER]",
 }
 _TARGET_ROLE_TOKENS = {
     "agent": "[TARGET_AGENT]",
     "customer": "[TARGET_CUSTOMER]",
+    "spk_0": "[TARGET_SPEAKER_A]",
+    "spk_1": "[TARGET_SPEAKER_B]",
+    "unknown": "[TARGET_SPEAKER]",
 }
 
 
@@ -22,6 +28,12 @@ def _normalize_speaker(speaker: str) -> str:
     s = speaker.strip().lower()
     if s in ("agent", "agt"):
         return "agent"
+    if s in ("spk_0", "speaker_0"):
+        return "spk_0"
+    if s in ("spk_1", "speaker_1"):
+        return "spk_1"
+    if s in ("unknown", ""):
+        return "unknown"
     return "customer"
 
 

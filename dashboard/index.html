@@ -149,6 +149,8 @@
     .spk-tag{display:inline-flex;align-items:center;padding:0.2rem 0.5rem;border-radius:5px;font-weight:600;font-size:0.7rem;text-transform:uppercase}
     .spk-tag.agent{background:rgba(6,182,212,0.12);color:var(--cyan);border:1px solid rgba(6,182,212,0.25)}
     .spk-tag.customer{background:rgba(245,158,11,0.12);color:var(--amber);border:1px solid rgba(245,158,11,0.25)}
+    .spk-tag.spk_0{background:rgba(6,182,212,0.12);color:var(--cyan);border:1px solid rgba(6,182,212,0.25)}
+    .spk-tag.spk_1{background:rgba(245,158,11,0.12);color:var(--amber);border:1px solid rgba(245,158,11,0.25)}
 
     /* Emotion chips — canonical EmoInHindi 16-class taxonomy */
     .emo-chip{display:inline-flex;align-items:center;gap:0.25rem;padding:0.15rem 0.5rem;border-radius:6px;font-size:0.72rem;font-weight:500}
@@ -347,6 +349,14 @@ async function loadTab(tabId){
   }
 }
 
+function spkLabel(s){
+  if(s==='agent') return 'Agent';
+  if(s==='customer') return 'Cust';
+  if(s==='spk_0') return 'Spk A';
+  if(s==='spk_1') return 'Spk B';
+  return s||'?';
+}
+
 function renderActiveTab(){
   const r = {
     summary: renderSummary, denoising: renderDenoising, diarization: renderDiarization,
@@ -454,6 +464,13 @@ function renderDiarization(d){
   if(!d?.segments){el.innerHTML='<div class="empty">No diarization data</div>';return}
   const talk = d.talk_ratio || {};
   const dur = d.duration_s || 1;
+  const roleRes = d.role_resolution || {};
+  const roleMethod = roleRes.method || 'unknown';
+  const roleConf = roleRes.confidence != null ? (roleRes.confidence*100).toFixed(0)+'%' : '—';
+  const roleStatus = roleRes.status || '—';
+  const roleMap = roleRes.mapping || {};
+  const mapStr = Object.entries(roleMap).map(([k,v])=>`${k}→${v}`).join(', ') || 'unresolved';
+  const methodBadge = {classifier:'🧠 Classifier', heuristic:'📋 Heuristic', fallback:'⚙️ Fallback', disabled:'⏸️ Disabled'}[roleMethod] || roleMethod;
   el.innerHTML = `
     <div class="card">
       <div class="card-title">👥 Speaker Timeline</div>
@@ -461,6 +478,15 @@ function renderDiarization(d){
       <div class="legend">
         <span><span class="legend-dot" style="background:var(--cyan)"></span>Agent (${talk.agent_duration_s||0}s)</span>
         <span><span class="legend-dot" style="background:var(--amber)"></span>Customer (${talk.customer_duration_s||0}s)</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🎯 Role Resolution</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:8px 0">
+        <div><div style="font-size:11px;color:var(--text-dim)">Method</div><div style="font-size:14px">${methodBadge}</div></div>
+        <div><div style="font-size:11px;color:var(--text-dim)">Confidence</div><div style="font-size:14px">${roleConf}</div></div>
+        <div><div style="font-size:11px;color:var(--text-dim)">Status</div><div style="font-size:14px">${roleStatus==='resolved'?'✅ Resolved':roleStatus==='provisional'?'⏳ Provisional':'❓ Uncertain'}</div></div>
+        <div><div style="font-size:11px;color:var(--text-dim)">Mapping</div><div style="font-size:14px">${mapStr}</div></div>
       </div>
     </div>
     <div class="card">
@@ -479,11 +505,12 @@ function renderDiarization(d){
     const tr = document.createElement('tr');
     tr.id = 'diar-row-'+i;
     tr.onclick = () => { audioPlayer.currentTime = s.start_time_s; audioPlayer.play(); };
-    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${s.speaker==='agent'?'Agent':'Customer'}</span></td><td>${s.start_time_s.toFixed(2)}s</td><td>${s.end_time_s.toFixed(2)}s</td><td>${s.duration_s.toFixed(2)}s</td><td>${(s.confidence*100).toFixed(0)}% ${s.uncertain?'⚠️':'✅'}</td>`;
+    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${spkLabel(s.speaker)}</span></td><td>${s.start_time_s.toFixed(2)}s</td><td>${s.end_time_s.toFixed(2)}s</td><td>${s.duration_s.toFixed(2)}s</td><td>${(s.confidence*100).toFixed(0)}% ${s.uncertain?'⚠️':'✅'}</td>`;
     tbody.appendChild(tr);
 
     const seg = document.createElement('div');
-    seg.className = 'tl-seg ' + s.speaker;
+    const colorClass = s.speaker === 'spk_0' ? 'agent' : s.speaker === 'spk_1' ? 'customer' : s.speaker;
+    seg.className = 'tl-seg ' + colorClass;
     seg.dataset.idx = i;
     seg.style.left = (s.start_time_s/dur*100)+'%';
     seg.style.width = Math.max(s.duration_s/dur*100, 0.3)+'%';
@@ -515,7 +542,7 @@ function renderTranscript(d){
     div.dataset.end = s.end_time_s;
     div.className = 'tr-line';
     div.style.cssText = 'display:flex;gap:0.6rem;padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer;border-left:3px solid transparent;transition:all 0.15s';
-    div.innerHTML = `<span class="spk-tag ${s.speaker}" style="flex-shrink:0;margin-top:2px">${s.speaker==='agent'?'Agent':'Cust'}</span><div><div style="font-size:0.68rem;color:var(--text-dim);margin-bottom:0.15rem">${s.start_time_s?.toFixed(1)}s – ${s.end_time_s?.toFixed(1)}s</div><div style="font-size:0.88rem;line-height:1.5">${s.text}</div></div>`;
+    div.innerHTML = `<span class="spk-tag ${s.speaker}" style="flex-shrink:0;margin-top:2px">${spkLabel(s.speaker)}</span><div><div style="font-size:0.68rem;color:var(--text-dim);margin-bottom:0.15rem">${s.start_time_s?.toFixed(1)}s – ${s.end_time_s?.toFixed(1)}s</div><div style="font-size:0.88rem;line-height:1.5">${s.text}</div></div>`;
     div.onclick = () => { audioPlayer.currentTime = s.start_time_s; audioPlayer.play(); };
     body.appendChild(div);
   });
@@ -539,7 +566,7 @@ function renderTextEmotion(d){
     const conf = s.confidence || 0;
     const tr = document.createElement('tr');
     tr.id = 'te-row-'+i;
-    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${s.speaker==='agent'?'Agent':'Cust'}</span></td><td><span class="emo-chip ${emo}">${emo}</span></td><td><span class="emo-chip ${sent}">${sent}</span></td><td>${(conf*100).toFixed(0)}%</td><td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.78rem;color:var(--text-dim)">${s.text||''}</td>`;
+    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${spkLabel(s.speaker)}</span></td><td><span class="emo-chip ${emo}">${emo}</span></td><td><span class="emo-chip ${sent}">${sent}</span></td><td>${(conf*100).toFixed(0)}%</td><td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.78rem;color:var(--text-dim)">${s.text||''}</td>`;
     body.appendChild(tr);
   });
 }
@@ -562,7 +589,7 @@ function renderAcousticEmotion(d){
     const r = s.acoustic_emotion || {};
     const tr = document.createElement('tr');
     tr.id = 'ae-row-'+i;
-    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker||'agent'}">${(s.speaker||'agent')==='agent'?'Agent':'Cust'}</span></td><td><span class="emo-chip ${r.emotion||'neutral'}">${r.emotion||'neutral'}</span></td><td>${((r.confidence||0)*100).toFixed(0)}%</td><td>${r.indeterminate?'⚠️':'✅'}</td>`;
+    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker||'spk_0'}">${spkLabel(s.speaker||'spk_0')}</span></td><td><span class="emo-chip ${r.emotion||'neutral'}">${r.emotion||'neutral'}</span></td><td>${((r.confidence||0)*100).toFixed(0)}%</td><td>${r.indeterminate?'⚠️':'✅'}</td>`;
     body.appendChild(tr);
   });
 }
@@ -584,7 +611,7 @@ function renderFusion(d){
     const f = fused[i] || {};
     const tr = document.createElement('tr');
     tr.id = 'fu-row-'+i;
-    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${s.speaker==='agent'?'Agent':'Cust'}</span></td><td><span class="emo-chip ${f.emotion||'neutral'}">${f.emotion||'neutral'}</span></td><td><span class="emo-chip ${f.sentiment||'neutral'}">${f.sentiment||'neutral'}</span></td><td>${((f.confidence||0)*100).toFixed(0)}%</td><td style="font-size:0.75rem;color:var(--text-dim)">${f.source||'--'}${f.text_weight?' tw:'+f.text_weight:''}</td>`;
+    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${spkLabel(s.speaker)}</span></td><td><span class="emo-chip ${f.emotion||'neutral'}">${f.emotion||'neutral'}</span></td><td><span class="emo-chip ${f.sentiment||'neutral'}">${f.sentiment||'neutral'}</span></td><td>${((f.confidence||0)*100).toFixed(0)}%</td><td style="font-size:0.75rem;color:var(--text-dim)">${f.source||'--'}${f.text_weight?' tw:'+f.text_weight:''}</td>`;
     body.appendChild(tr);
   });
 }

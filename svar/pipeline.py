@@ -252,7 +252,7 @@ class EmotionPipeline:
 
         # ── Build per-speaker baselines from early-call turns ──
         baselines: Dict[str, Any] = {}
-        for speaker in ["agent", "customer", "Agent", "Customer"]:
+        for speaker in set(t.speaker.lower() for t in turns):
             turn_records = []
             for turn in turns:
                 if turn.speaker.lower() != speaker.lower():

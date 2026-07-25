@@ -227,7 +227,7 @@ def reassign_speakers(
                 "start_time_s": s["start_time_s"],
                 "end_time_s": s["end_time_s"],
                 "duration_s": s["duration_s"],
-                "speaker": "agent" if i == 0 else "customer",
+                "speaker": "spk_0" if i == 0 else "spk_1",
                 "sb_d_agent": 0.0,
                 "sb_d_customer": 0.0,
                 "sb_margin": 0.0,
@@ -250,7 +250,7 @@ def reassign_speakers(
                 "start_time_s": s["start_time_s"],
                 "end_time_s": s["end_time_s"],
                 "duration_s": s["duration_s"],
-                "speaker": "agent",
+                "speaker": "spk_0",
                 "sb_d_agent": 0.0,
                 "sb_d_customer": 0.0,
                 "sb_margin": 0.0,
@@ -276,19 +276,19 @@ def reassign_speakers(
 
     first_pyannote_spk = segments[0].get("pyannote_speaker", "S0")
     if first_pyannote_spk == spk_list[0]:
-        agent_centroid = centroid_a
-        customer_centroid = centroid_b
+        centroid_spk0 = centroid_a
+        centroid_spk1 = centroid_b
     else:
-        agent_centroid = centroid_b
-        customer_centroid = centroid_a
+        centroid_spk0 = centroid_b
+        centroid_spk1 = centroid_a
 
     result = []
     for seg, emb in zip(segments, all_embs):
-        d_agent = _cosine_distance(emb, agent_centroid)
-        d_customer = _cosine_distance(emb, customer_centroid)
-        margin = d_customer - d_agent
+        d_spk0 = _cosine_distance(emb, centroid_spk0)
+        d_spk1 = _cosine_distance(emb, centroid_spk1)
+        margin = d_spk1 - d_spk0
 
-        speaker = "agent" if margin >= 0 else "customer"
+        speaker = "spk_0" if margin >= 0 else "spk_1"
 
         result.append({
             "start_sample": int(round(seg["start_time_s"] * sr)),
@@ -297,8 +297,8 @@ def reassign_speakers(
             "end_time_s": seg["end_time_s"],
             "duration_s": seg["duration_s"],
             "speaker": speaker,
-            "sb_d_agent": float(d_agent),
-            "sb_d_customer": float(d_customer),
+            "sb_d_agent": float(d_spk0),
+            "sb_d_customer": float(d_spk1),
             "sb_margin": float(margin),
         })
 
@@ -329,7 +329,7 @@ def decode_region(
     if not items:
         return []
 
-    labels = ("agent", "customer")
+    labels = ("spk_0", "spk_1")
     n = len(items)
 
     emissions = []

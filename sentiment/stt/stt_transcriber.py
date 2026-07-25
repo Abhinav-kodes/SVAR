@@ -178,7 +178,7 @@ class SpeechToTextTranscriber:
                     "start_time_s": d.get("start_time_s", 0),
                     "end_time_s": d.get("end_time_s", 0),
                     "text": "",
-                    "speaker": d.get("speaker", "agent"),
+                    "speaker": d.get("speaker", "spk_0"),
                     "words": [],
                     "avg_logprob": 0,
                     "no_speech_prob": 0,
@@ -217,7 +217,7 @@ class SpeechToTextTranscriber:
                 "start_time_s": d_start,
                 "end_time_s": d_end,
                 "text": text,
-                "speaker": dseg.get("speaker", "agent"),
+                "speaker": dseg.get("speaker", "spk_0"),
                 "words": [
                     {
                         "start": round(w["start"], 3),

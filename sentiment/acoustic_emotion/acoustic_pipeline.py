@@ -77,7 +77,7 @@ def analyze_acoustic_emotions(
     baselines: Dict[str, Dict[str, Any]] = {}
 
     for seg in segments:
-        speaker = seg.get("speaker", "agent")
+        speaker = seg.get("speaker", "spk_0")
         start_s = seg.get("start_time_s", 0.0)
         end_s = seg.get("end_time_s", 0.0)
 

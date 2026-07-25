@@ -91,7 +91,7 @@ class DiarizationPipeline:
                 "start_time_s": seg["start_time_s"],
                 "end_time_s": seg["end_time_s"],
                 "duration_s": seg["duration_s"],
-                "speaker": "agent" if seg.get("pyannote_speaker") == raw_segments[0].get("pyannote_speaker") else "customer",
+                "speaker": "spk_0" if seg.get("pyannote_speaker") == raw_segments[0].get("pyannote_speaker") else "spk_1",
                 "_needs_reclass": seg.get("_needs_reclass", False),
             })
 
@@ -146,7 +146,7 @@ class DiarizationPipeline:
             )
             if is_single_speaker:
                 for seg in segments:
-                    seg["speaker"] = "agent"
+                    seg["speaker"] = "spk_0"
                 segments = [segments[0].copy()]
                 segments[0]["end_time_s"] = pyannote_segments[-1]["end_time_s"]
                 segments[0]["end_sample"] = pyannote_segments[-1].get("end_sample", 0)
@@ -199,10 +199,10 @@ class DiarizationPipeline:
         overlap_count = 0
         for seg in segments:
             dur = seg["duration_s"]
-            if seg["speaker"] == "agent":
+            if seg["speaker"] == "spk_0":
                 agent_dur += dur
                 agent_count += 1
-            elif seg["speaker"] == "customer":
+            elif seg["speaker"] == "spk_1":
                 customer_dur += dur
                 customer_count += 1
             else:
@@ -223,8 +223,8 @@ class DiarizationPipeline:
                 "customer_ratio": round(customer_ratio, 4),
             },
             "speakers": {
-                "agent": {"segment_count": agent_count, "has_baseline": False},
-                "customer": {"segment_count": customer_count, "has_baseline": False},
+                "spk_0": {"segment_count": agent_count, "has_baseline": False},
+                "spk_1": {"segment_count": customer_count, "has_baseline": False},
                 "overlap": {"segment_count": overlap_count},
             },
             "segments": segments,
@@ -273,8 +273,8 @@ class DiarizationPipeline:
                 "customer_ratio": 0.0,
             },
             "speakers": {
-                "agent": {"segment_count": 0, "has_baseline": False},
-                "customer": {"segment_count": 0, "has_baseline": False},
+                "spk_0": {"segment_count": 0, "has_baseline": False},
+                "spk_1": {"segment_count": 0, "has_baseline": False},
                 "overlap": {"segment_count": 0},
             },
             "segments": [],

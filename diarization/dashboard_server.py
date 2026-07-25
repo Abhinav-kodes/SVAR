@@ -25,6 +25,7 @@ _diarizer = None
 _stt = None
 _acoustic_pipeline = None
 _emotion_classifier = None
+_role_engine = None
 
 
 def log(msg: str):
@@ -74,6 +75,14 @@ def _get_emotion_classifier():
     from sentiment.emotion_classifier import classify_emotions_batch
     _emotion_classifier = classify_emotions_batch
     return _emotion_classifier
+
+
+def _get_role_engine():
+    global _role_engine
+    if _role_engine is None:
+        from svar.role_inference import RoleInferenceEngine
+        _role_engine = RoleInferenceEngine()
+    return _role_engine
 
 
 def _ensure_cache(filename):
@@ -180,10 +189,26 @@ def api_transcribe(handler, filename):
     n_text = sum(1 for s in transcript if s.get("text"))
     log(f"  Non-empty: {n_text}/{len(transcript)} segments ({time.time()-t0:.1f}s)")
 
+    t_role = time.time()
+    engine = _get_role_engine()
+    resolution = engine.resolve(c["segments"])
+    engine.apply_mapping(c["segments"], resolution)
+    c["role_resolution"] = {
+        "mapping": resolution.role_mapping,
+        "method": resolution.method,
+        "applied": resolution.applied,
+    }
+    if resolution.result:
+        c["role_resolution"]["confidence"] = resolution.result.confidence
+        c["role_resolution"]["status"] = resolution.result.status
+        c["role_resolution"]["turns_used"] = resolution.result.turns_used
+    log(f"  Role resolution: {resolution.method} {resolution.role_mapping} ({time.time()-t_role:.1f}s)")
+
     return {
         "duration_s": c["duration"],
         "segments": c["segments"],
         "talk_ratio": c.get("talk_ratio", {}),
+        "role_resolution": c["role_resolution"],
     }
 
 
