@@ -1,5 +1,5 @@
 # SVAR — Call Analytics Pipeline Roadmap
-*Updated to reflect current codebase state — 25 Jul 2026*
+*Updated to reflect current codebase state — 26 Jul 2026*
 
 ---
 
@@ -15,8 +15,8 @@ RAW CALL AUDIO
            ↓ clean audio
 ┌─────────────────────────────────┐
 │  PART 2: DIARIZATION    ✅ DONE │  pyannote/speaker-diarization-3.1
-│  + SPEAKER PROFILING            │  + SpeechBrain ECAPA-TDNN embeddings
-└──────┬──────────┬───────────────┘  + silhouette confidence scoring
+│  + ROLE INFERENCE               │  + SpeechBrain ECAPA-TDNN embeddings
+└──────┬──────────┬───────────────┘  + MuRIL role classifier
        ↓          ↓
   Agent        Customer
   segments     segments
@@ -32,8 +32,13 @@ RAW CALL AUDIO
     evidence quality, calibration)
            ↓
 ┌─────────────────────────────────┐
-│  DASHBOARD + INTEGRATION 🔶 75% │  10-tab dashboard, lazy per-tab APIs,
-│  Real-time visualization        │  emotion chips, acoustic panels
+│  PART 4: COMPLIANCE + QA  ✅    │  Gemini Flash LLM compliance,
+│  + CRM                          │  30+ Hindi abuse keywords, 5-factor QA
+└──────────┬──────────────────────┘  TF-IDF CRM notes
+           ↓
+┌─────────────────────────────────┐
+│  DASHBOARD + INTEGRATION ✅ 90% │  8-tab dashboard, background pipeline,
+│  Parallel pipeline + polling    │  progress tracking, parallel stages
 └─────────────────────────────────┘
 ```
 
@@ -84,51 +89,56 @@ All components implemented, tested, and benchmarked. Benchmarked on 3 sample cal
 
 ---
 
-## Part 2 — Speaker Diarization ✅ COMPLETE
+## Part 2 — Speaker Diarization + Role Inference ✅ COMPLETE
 
-> **Architecture Change:** The original roadmap planned a custom MFCC→prosodic→formant→fingerprint pipeline. The implementation uses **pyannote/speaker-diarization-3.1** for segmentation + **SpeechBrain ECAPA-TDNN** for embeddings + **sklearn silhouette scoring** for confidence. This is significantly more robust and production-ready.
+> **Architecture Change:** The original roadmap planned a custom MFCC→prosodic→formant→fingerprint pipeline. The implementation uses **pyannote/speaker-diarization-3.1** for segmentation + **SpeechBrain ECAPA-TDNN** for embeddings + **sklearn silhouette scoring** for confidence. Speaker roles are assigned via a **MuRIL-based classifier** with heuristic fallback.
 
-### ✅ Day 6–9 — Core Diarization (Implemented via pyannote + SpeechBrain)
-
-**Original plan:** Custom MFCC extractor, prosodic extractor, LPC formant estimator, pause segmenter, speaker fingerprinter, speaker assigner, baseline builder.
-
-**Actual implementation:**
+### ✅ Core Diarization (Implemented via pyannote + SpeechBrain)
 - `diarization/pipeline.py` — `DiarizationPipeline` class
   - Uses `pyannote/speaker-diarization-3.1` (HuggingFace, lazy-loaded)
   - Hook-based extraction of chunk embeddings + segmentation data + global centroids
-  - Automatic agent/customer assignment (first pyannote speaker = agent)
+  - Outputs `spk_0`/`spk_1` labels (role inference maps to agent/customer after STT)
   - Talk ratio computation (agent/customer/overlap durations)
   - Configurable `num_speakers`, `min_speakers`, `max_speakers`
 
 - `diarization/speaker_embedder.py` — SpeechBrain ECAPA-TDNN module
   - `_embed_chunk()` / `_embed_centered()` — extract embeddings for time ranges
   - `extract_segment_embeddings()` — batch embedding extraction with min-duration padding
-  - `split_merged_turns()` — detect and split merged turns where pyannote missed speaker changes (drift threshold 0.30)
+  - `split_merged_turns()` — detect and split merged turns where pyannote missed speaker changes
   - `reassign_speakers()` — anchor-based reclassification using SpeechBrain embeddings
   - `decode_region()` — Viterbi sequence decoder with transition priors for ambiguous regions
 
 - `diarization/change_detector.py` — ML-based false split detection
-  - `score_boundaries()` — scores each inter-segment boundary using a trained classifier (joblib model)
+  - `score_boundaries()` — scores each inter-segment boundary using a trained classifier
   - `merge_false_splits()` — merges adjacent same-speaker segments below confidence threshold
   - `detect_single_speaker()` — detects single-speaker audio via pyannote segmentation dominance
 
 - `diarization/confidence.py` — embedding-based confidence scoring
   - `compute_segment_confidence()` — sklearn silhouette_samples on segment embeddings
   - `compute_rolling_separability()` — sliding-window cosine distance between speaker centroids
-  - `detect_low_separability_regions()` — identifies ambiguous time regions
 
-### ✅ Day 10–11 — Integration + Dashboard
+### ✅ Role Inference (Commits `c574531`, `6bbe8ae`)
+- `svar/models/role_classifier.py` — MuRIL-based 3-class speaker role classifier:
+  - Classes: `A_AGENT_B_CUSTOMER`, `A_CUSTOMER_B_AGENT`, `UNKNOWN_OR_OTHER`
+  - `build_role_context()` — role-tagged transcript for classification
+  - `infer_roles()` — model prediction with confidence scores
+  - `apply_role_mapping()` — maps model output to segment speaker labels
 
+- `svar/role_inference.py` — `RoleInferenceEngine` orchestrator:
+  - Lazy model loading with singleton pattern
+  - Classifier → heuristic → fallback chain
+  - Heuristic: Hindi self-introduction pattern matching (first 12 turns only)
+  - `ROLE_INFERENCE_DISABLED=1` env var to skip
+
+### ✅ Dashboard Integration
 - `diarization/dashboard_server.py` — HTTP server (port 8050) with:
   - `GET /` — serves dashboard HTML
   - `GET /api/sample_calls` — lists available audio files
   - `GET /audio/<filename>` — serves raw audio files
-  - `POST /api/diarize` — full pipeline: load → denoise → diarize → return JSON
-  - `POST /api/text_emotion` — text emotion via translate + DistilRoBERTa (production fallback)
-  - `POST /api/acoustic_emotion` — rule-based prosodic classifier
-  - `POST /api/fused_emotion` — confidence-gated text+acoustic fusion
-  - All API endpoints use `ThreadingTCPServer` for concurrent requests
-- `dashboard/index.html` — 10-tab web UI with lazy per-tab APIs
+  - `GET /api/progress?file=X` — pipeline progress polling
+  - `POST /api/analyze` — starts background pipeline
+  - `POST /api/denoise`, `/api/diarize`, `/api/transcribe`, `/api/emotion`, `/api/compliance`, `/api/qa-score`, `/api/crm-note` — cached result endpoints
+  - `ThreadingTCPServer` for concurrent requests
 
 ---
 
@@ -153,145 +163,47 @@ All components implemented, tested, and benchmarked. Benchmarked on 3 sample cal
   - Temperature scaling: single scalar `T` fitted on validation NLL
   - `EvidenceQualityGate`: deterministic quality diagnostics (separate from learned uncertainty)
   - **Abstention rule**: outputs `"uncertain"` when evidence is insufficient — NEVER outputs `"neutral"` as fallback
-  - Quality gate checks: text coverage, translation quality, audio indeterminacy, repair used
 
 ### ✅ Data Preparation (Commit `28517c3`)
 - `svar/data/prepare_emoinhindi.py`:
   - Dialogue-level 70/15/15 split (no dialogue leakage between train/val/test)
   - Stable IDs by `_source_index` — never matched by text content
-  - `repair_turns` REMOVED from training data — each original utterance = one supervised target
-  - `IGNORE_INDEX=-100` for interaction-state and conduct-risk (not in EmoInHindi)
-  - Labels carried by stable `_source_index`, never matched by text
+  - `repair_turns` REMOVED from training data
 
 ### ✅ Acoustic System (Commits `9256320`, `ce4ca5a`)
 - `svar/acoustic/speaker_baseline.py` — `SpeakerBaselineBuilder`:
   - Early-call reference turns only (≥1.2s duration, min 3 turns, min 5s total)
-  - Robust median + MAD stats for all acoustic features
-  - **Frozen after construction** — never updated with later (potentially angry) turns
-  - Prevents emotional drift in baseline estimates
-
-- `svar/acoustic/baseline_features.py` — 15 low-level acoustic features:
-  - log-energy, F0 median, F0 IQR, F0 slope, voiced ratio
-  - speech rate, pause ratio, spectral centroid, spectral slope
-  - HNR (harmonics-to-noise ratio), jitter, shimmer
-
-- `svar/acoustic/relative_features.py` — baseline-relative vectors:
-  - Z-score deviation from baseline per feature
-  - Delta between consecutive turns
-  - Scalar shift scores for arousal, voice_shift, escalation
-
-- `svar/acoustic/trajectory_model.py` — `SpeakerShiftTemporalModel`:
-  - BiGRU across call-level turn sequence
-  - Outputs: arousal, voice_shift, escalation
-  - Trained only on real call labels (not EmoInHindi — which lacks these)
-  - Provides CHANGE SIGNAL, not competing emotion labels
+  - Robust median + MAD stats, **frozen after construction**
+- `svar/acoustic/baseline_features.py` — 15 low-level acoustic features
+- `svar/acoustic/relative_features.py` — baseline-relative z-score vectors
+- `svar/acoustic/trajectory_model.py` — `SpeakerShiftTemporalModel` (BiGRU)
 
 ### ✅ Core Models (Commit `05c97a8`)
-- `svar/models/contextual_muril.py` — 237M params (195M trainable):
-  - Multi-task heads: emotion BCE + intensity SmoothL1 + sentiment CE + interaction-state CE + conduct-risk BCE + uncertainty
-  - Role-tagged context windows: `[AGENT] prev [CUSTOMER] prev [TARGET_AGENT] target ...`
-  - Dropout regularization per task head
-  - `IGNORE_INDEX` mask support for missing labels
-
-- `svar/models/wavlm_emotion.py` — WavLM base audio encoder:
-  - Gradient checkpointing for RTX 2050 VRAM constraints
-  - Attention pooling over frame-level features
-  - Speaker-normalized input (relative to baseline)
-
-- `svar/models/fusion_net.py` — baseline-aware learned fusion:
-  - Audio provides CHANGE SIGNAL (arousal/shift/escalation), not competing emotion
-  - Gated fusion: text determines WHAT emotion, audio determines HOW INTENSE
-  - Confidence modulator: acoustic shift boosts confidence when text is uncertain
-  - Escalation detector: sustained acoustic change overrides low-confidence text
-
-- `svar/models/temporal_decoder.py` — BiGRU/Transformer across call-level turn sequence
-  - Captures escalation patterns across the conversation
+- `svar/models/contextual_muril.py` — 237M params (195M trainable), 6-task multi-head
+- `svar/models/wavlm_emotion.py` — WavLM base audio encoder with attention pooling
+- `svar/models/fusion_net.py` — baseline-aware learned gated fusion
+- `svar/models/temporal_decoder.py` — BiGRU across call-level turn sequence
 
 ### ✅ Pipeline + Inference (Commit `ce4ca5a`)
-- `svar/pipeline.py` — `EmotionPipeline` end-to-end:
-  ```
-  segments → turns → baselines → relative features → trajectory model →
-  text model → fusion → calibration → TurnPrediction
-  ```
-  - `TurnPrediction` dataclass: emotion, sentiment, intensity, confidence, calibration_temp, evidence_quality, acoustic
-  - Full inference verified working on real audio (71 segments, ~195s)
+- `svar/pipeline.py` — `EmotionPipeline` end-to-end inference
 
 ### ✅ Turn Repair + Context Builder
-- `svar/turn_repair.py` — speaker-aware merging:
-  - Gap threshold: 0.7s, short-turn threshold: 0.8s
-  - **INFERENCE ONLY** — never run on training data
-  - Each original EmoInHindi utterance = one supervised target
-
-- `svar/context_builder.py` — role-tagged context:
-  - `[AGENT] prev [CUSTOMER] prev [TARGET_AGENT] target ...`
-  - Configurable context window size
+- `svar/turn_repair.py` — speaker-aware merging (inference only)
+- `svar/context_builder.py` — role-tagged context windows
 
 ### ✅ Training Scripts + Configs (Commit `381f505`)
-- `scripts/train_muril.py` — multi-task training:
-  - AdamW optimizer (lr=2e-5, weight_decay=0.01)
-  - Linear warmup scheduler (10% warmup steps)
-  - Weighted BCE for emotion, SmoothL1 for intensity, CE for sentiment
-  - Mixed-precision (AMP) + gradient checkpointing
-  - Early stopping on validation macro-F1
-  - Checkpoint saving (best by val macro-F1)
-
-- `scripts/train_wavlm.py` — WavLM audio model training
-- `scripts/evaluate.py` — call-disjoint evaluation metrics
+- `scripts/train_muril.py`, `scripts/train_wavlm.py`, `scripts/evaluate.py`
 - `configs/train_muril.yaml`, `configs/train_wavlm.yaml`, `configs/evaluate.yaml`
 
-### ✅ Annotation Schema
-- `docs/target_domain_annotation.md` — human annotation schema for:
-  - Interaction-state: professional, escalatory, defensive, cooperative
-  - Conduct-risk: clean, warning, violation, critical
-  - Acoustic labels: arousal, shift, escalation (continuous 0-1)
-
 ### ✅ Dashboard Emotion Display (Commits `d96ddb5`, `2e56379`)
-- 16-class emotion chip CSS in `dashboard/index.html`
-- Uncertain style: dashed border for uncertain predictions
+- 16-class emotion chip CSS + uncertain dashed style
 - `sentiment/fusion_layer.py` — neutral-override: when text=neutral but acoustic detects non-neutral, acoustic wins
-- Sentiment threshold lowered from ±0.30 to ±0.10 for better sensitivity
-- All existing classifiers updated to canonical 16-class taxonomy
+- Sentiment threshold lowered from ±0.30 to ±0.10
 
 ### ✅ Old Pipeline Updated (Commit `7fe5a5f`)
 - `sentiment/emotion_classifier.py` — LABEL_MAP fixed to canonical 16-class names
 - `sentiment/fusion_layer.py` — EMOTION_TO_SENTIMENT updated for full 16 classes
-- `sentiment/acoustic_emotion/acoustic_emotion_classifier.py` — EMOTION_PROFILES updated: removed "stress", renamed to canonical names
-
-### ✅ Compliance Engine (Commit `ed5ff00`, `93fb8cc`)
-- `sentiment/compliance_engine.py`:
-  - RBI/IRDAI violation regex patterns (Hindi + English)
-  - 30+ Hindi abusive keywords (मादरचोद, बहनचोद, भोसड़ी, घटिया, कुत्ते, लौड़े, etc.)
-  - Compound Hindi abuse phrase detection (तेरी मां चोद, बहन के लौड़े, कुत्ते की तरह, etc.)
-  - Threat/harassment pattern detection (sexual threats, violence threats)
-  - Levenshtein distance (DP from scratch) for fuzzy match (min word length 5, max distance 2)
-  - Hindi-aware tokenizer (`[\w\u0900-\u097F]+` instead of `\b\w+\b` which breaks on matras)
-  - Per-segment + per-call violation counting (agent vs customer)
-
-### ✅ QA Scorer
-- `sentiment/qa_scorer.py`:
-  - 5-factor weighted scoring:
-    ```
-    score = 0.30 * customer_sentiment + 0.25 * compliance_score
-          + 0.20 * agent_stability + 0.15 * intent_resolution + 0.10 * talk_ratio
-    ```
-  - Grade: A(85+) B(70+) C(55+) D(<55)
-  - Configurable weights in YAML
-  - Agent stability: variance-based (low variance = high score)
-  - Talk ratio: ideal 35-65% agent talk time
-
-### ✅ CRM Note Generator
-- `sentiment/crm_note_generator.py`:
-  - TF-IDF extractive summarizer (no external API needed)
-  - Key points: dominant customer sentiment, agent tone, QA score
-  - Compliance summary: violation count + agent vs customer
-  - Recommended action: auto-generated based on QA grade + violations
-
-### ✅ Sentiment Pipeline Integration
-- `sentiment/pipeline.py` — `SentimentPipeline` class:
-  - Consumes Part 2 output (segments with speaker labels)
-  - Runs: acoustic emotion → STT → text emotion → fusion → compliance → QA → CRM
-  - Returns per-segment emotion timeline + compliance + QA + CRM note
-  - All components verified working end-to-end
+- `sentiment/acoustic_emotion/acoustic_emotion_classifier.py` — EMOTION_PROFILES updated
 
 ### 🔴 Remaining: Training + Checkpoints
 - No trained models exist yet — architecture complete but needs:
@@ -304,96 +216,124 @@ All components implemented, tested, and benchmarked. Benchmarked on 3 sample cal
 
 ---
 
-## Dashboard + Integration 🔶 75% COMPLETE
+## Part 4 — Compliance + QA + CRM ✅ COMPLETE
 
-### ✅ 10-Tab Dashboard
-- `dashboard/index.html` — tabs: Transcript, Diarization, Emotion Timeline, Acoustic, QA Score, Compliance, CRM Notes, Agent Profile, Raw JSON, Settings
-- Lazy per-tab API loading (only fetches when tab opened)
-- Real-time transcript highlighting with speaker colors
+### ✅ Compliance Engine with Gemini Flash LLM (Commits `ed5ff00`, `93fb8cc`, `bc34811`, `9fbb601`)
+- `sentiment/compliance_engine.py`:
+  - Two-stage architecture: keyword filter → Gemini Flash LLM verification
+  - RBI/IRDAI violation regex patterns (Hindi + English)
+  - 30+ Hindi abusive keywords + compound phrase detection
+  - Threat/harassment pattern detection
+  - Adaptive Levenshtein fuzzy match (distance 1 for words <6 chars, 2 for ≥6)
+  - Hindi-aware tokenizer (`[\w\u0900-\u097F]+`)
+  - WHITELIST_HINDI: 18 innocent words to prevent false positives
+  - LLM overrides keyword results when contextually incorrect
+
+- `sentiment/compliance_llm.py` — Gemini Flash compliance checker:
+  - 9 API keys with round-robin rotation
+  - 4-model fallback chain: `gemini-2.5-flash` → `3.6-flash` → `3.1-flash-lite` → `3.5-flash`
+  - Structured prompt for Hindi/English abuse/RBI/IRDAI detection
+  - `LLM_COMPLIANCE_DISABLED=1` env var to skip
+
+### ✅ QA Scorer
+- `sentiment/qa_scorer.py`:
+  - 5-factor weighted scoring: customer_sentiment(0.30), compliance(0.25), agent_stability(0.20), intent_resolution(0.15), talk_ratio(0.10)
+  - Grade: A(85+) B(70+) C(55+) D(<55)
+  - Configurable weights in YAML
+
+### ✅ CRM Note Generator
+- `sentiment/crm_note_generator.py`:
+  - TF-IDF extractive summarizer
+  - Key points, compliance summary, recommended action
+
+### ✅ Sentiment Pipeline Integration
+- `sentiment/pipeline.py` — `SentimentPipeline` class
+- `sentiment/stt/stt_transcriber.py` — Google Cloud STT V2 (Chirp 3), parallel chunk transcription
+
+---
+
+## Dashboard + Integration ✅ 90% COMPLETE
+
+### ✅ 8-Tab Dashboard with Background Pipeline
+- `dashboard/index.html` — tabs: Summary, Denoising, Diarization, Transcript, Emotion, Compliance, QA Score, CRM Note
+- **Analyze button** triggers full pipeline in background
+- **Progress bar** with stage-by-stage updates (polls `/api/progress`)
+- Tab badges show ✓ (done) / ● (running) per stage
+- Lazy result fetching after pipeline completes
+- Real-time audio playhead sync across all tabs
 - Emotion chips with 16-class CSS + uncertain dashed style
+
+### ✅ Parallel Pipeline Architecture
+- Background pipeline runs in daemon thread with progress tracking
+- 9 stages, 2 parallel windows:
+  ```
+  Denoise → Diarize → [STT | Acoustic] → [Text Emotion | Compliance] → Fusion → QA → CRM
+  ```
+- Stage 3: STT + Acoustic run in parallel (both depend on diarize)
+- Stage 4: Text Emotion + Compliance run in parallel (both depend on STT)
+- Thread-safe progress updates with `_progress_lock`
+- Individual endpoints remain for cached result retrieval
 
 ### ✅ Dashboard Server
 - `diarization/dashboard_server.py`:
-  - `ThreadingTCPServer` for concurrent requests (replaces `HTTPServer`)
-  - All endpoints: `/api/diarize`, `/api/text_emotion`, `/api/acoustic_emotion`, `/api/fused_emotion`, `/api/qa_score`, `/api/compliance`
+  - `POST /api/analyze` — starts background pipeline thread
+  - `GET /api/progress?file=X` — returns `{status, percent, current_stage, stages, time_s}`
+  - Individual POST endpoints return cached results for each tab
   - Google Cloud STT V2 (Chirp 3) with chunked 50s requests
   - Local translation model (opus-mt-hi-en) + DistilRoBERTa for Hindi emotion
-
-### 🔴 Remaining: Integration
-- Wire `api_text_emotion` to `svar.pipeline.EmotionPipeline` (with fallback to existing classifier when no checkpoint)
-- Wire acoustic panel to `svar/acoustic/` system (requires trained WavLM + trajectory model)
 
 ---
 
 ## Integration + Polish 🔴 NOT STARTED
 
-### 🔴 Day 20 — FastAPI Backend
+### 🔴 FastAPI Backend
 **What needs to be built:**
-- `backend/main.py` — FastAPI async endpoints:
-  ```
-  POST /calls/upload           → accept audio file, return job_id
-  GET  /calls/{job_id}/status  → poll for completion
-  GET  /calls/{job_id}/results → full analysis JSON
-  GET  /dashboard/agent/{id}   → agent QA summary
-  GET  /dashboard/overview     → all agents ranked by score
-  ```
+- `backend/main.py` — FastAPI async endpoints
 - JWT authentication middleware (HS256)
 - Pydantic response models
 - `/health` endpoint
-- Replace current `http.server` dashboard with FastAPI
 
-### 🔴 Day 21 — Celery + Task Queue
+### 🔴 Celery + Task Queue
 **What needs to be built:**
 - Celery + RabbitMQ for async pipeline execution
 - Task chain: `denoise → diarize → analyze_sentiment`
-- Background job processing with status polling
 
-### 🔴 Day 22 — Database + Caching
+### 🔴 Database + Caching
 **What needs to be built:**
 - MongoDB document schemas (Call, Segment, Agent)
-- Full analysis persistence per call
 - Redis cache for dashboard queries (TTL 5 min)
-- Rolling 30-call window for agent QA tracking
 
-### 🔴 Day 23 — Docker Compose
+### 🔴 Docker Compose
 **What needs to be built:**
 - `Dockerfile` for API + worker
 - `docker-compose.yml`: api, worker, rabbitmq, mongodb, redis
-- `.env` for API keys and connection strings
-- Health checks, horizontal scaling
 
-### 🔴 Day 24 — README + Documentation
+### 🔴 README + Documentation
 **What needs to be built:**
-- Professional README with architecture diagram, benchmark tables, sample output JSON
-- Methodology section citing all papers
+- Professional README with architecture diagram, benchmark tables
 - Setup instructions: `git clone → docker-compose up`
-
-### 🔴 Day 25 — Final Testing + Demo
-**What needs to be built:**
-- 20-call zero-crash validation
-- 3-minute demo video
-- GitHub push with clean history
 
 ---
 
 ## Summary
 
-| Part | Status | Days | Key Components |
-|---|---|---|---|
-| Denoising + Enhancement | ✅ Complete | 1–5 | Butterworth HPF, IIR notch, compressor, declipper, Wiener denoiser, SNR calculator |
-| Diarization + Profiling | ✅ Complete | 6–11 | pyannote 3.1, SpeechBrain ECAPA-TDNN, silhouette confidence, Viterbi decoder, change detector |
-| Emotion Analysis | ✅ 95% | 12–19 | svar/ package: 16-class taxonomy, contextual MuRIL, WavLM, acoustic baselines, trajectory model, learned fusion, calibration |
-| Compliance + QA + CRM | ✅ Complete | — | Hindi abuse lexicon (30+ words), compound phrases, threat detection, RBI/IRDAI regex, Levenshtein fuzzy, 5-factor QA scoring, TF-IDF CRM notes |
-| Dashboard + Integration | 🔶 75% | — | 10-tab dashboard, lazy APIs, emotion chips, Google Cloud STT |
-| Integration + Polish | 🔴 0% | 20–25 | FastAPI, Celery, MongoDB, Docker Compose |
+| Part | Status | Key Components |
+|---|---|---|
+| Denoising + Enhancement | ✅ Complete | Butterworth HPF, IIR notch, compressor, declipper, Wiener denoiser |
+| Diarization + Role Inference | ✅ Complete | pyannote 3.1, SpeechBrain ECAPA-TDNN, MuRIL role classifier, heuristic fallback |
+| Emotion Analysis | ✅ 95% | svar/ package: 16-class taxonomy, contextual MuRIL, WavLM, acoustic baselines, fusion, calibration |
+| Compliance + QA + CRM | ✅ Complete | Gemini Flash LLM, Hindi abuse lexicon, 5-factor QA, TF-IDF CRM notes |
+| Dashboard + Integration | ✅ 90% | 8-tab UI, background pipeline, progress tracking, parallel stages |
+| Integration + Polish | 🔴 0% | FastAPI, Celery, MongoDB, Docker Compose |
 
-### Completed Components (35+ files)
+### Completed Components (40+ files)
 ```
 svar/schemas.py                    svar/pipeline.py
 svar/calibration.py                svar/turn_repair.py
 svar/context_builder.py            svar/data/prepare_emoinhindi.py
 svar/models/contextual_muril.py    svar/models/wavlm_emotion.py
 svar/models/fusion_net.py          svar/models/temporal_decoder.py
+svar/models/role_classifier.py     svar/role_inference.py
 svar/acoustic/speaker_baseline.py  svar/acoustic/baseline_features.py
 svar/acoustic/relative_features.py svar/acoustic/trajectory_model.py
 
@@ -409,12 +349,11 @@ diarization/change_detector.py     diarization/confidence.py
 diarization/dashboard_server.py    dashboard/index.html
 
 sentiment/emotion_classifier.py    sentiment/fusion_layer.py
-sentiment/acoustic_emotion/acoustic_emotion_classifier.py
-sentiment/preprocessing/prepare_emoin_hindi.py
+sentiment/compliance_engine.py     sentiment/compliance_llm.py
+sentiment/acoustic_emotion/acoustic_pipeline.py
 sentiment/stt/stt_transcriber.py
-sentiment/models/dataset.py        sentiment/models/muril_model.py
-sentiment/compliance_engine.py     sentiment/qa_scorer.py
-sentiment/crm_note_generator.py    sentiment/pipeline.py
+sentiment/qa_scorer.py             sentiment/crm_note_generator.py
+sentiment/pipeline.py
 
 scripts/train_muril.py             scripts/train_wavlm.py
 scripts/evaluate.py                docs/target_domain_annotation.md
@@ -425,14 +364,12 @@ configs/evaluate.yaml
 ### Remaining Work (priority order)
 1. **EmoInHindi Data** — download + process → `python -m svar.data.prepare_emoinhindi`
 2. **Train ContextualMuRIL** — text model → `python -m scripts.train_muril`
-3. **Wire Dashboard to svar** — `api_text_emotion` → `svar.pipeline.EmotionPipeline` (fallback when no checkpoint)
-4. **Collect Annotated Call Data** — IS/CR/arousal/shift/escalation labels (needed for trajectory + fusion training)
-5. **Train WavLM** — audio model on EmoInHindi + fine-tune on call data
-6. **Train Trajectory Model** — on annotated call data
-7. **Train Fusion Model** — after text-only and audio-only show useful signal
-8. **FastAPI Backend** — replace http.server with proper async API
-9. **Celery + Task Queue** — async pipeline execution
-10. **Docker Compose** — containerized deployment
+3. **Collect Annotated Call Data** — IS/CR/arousal/shift/escalation labels
+4. **Train WavLM** — audio model on EmoInHindi + fine-tune on call data
+5. **Train Trajectory Model** — on annotated call data
+6. **Train Fusion Model** — after text-only and audio-only show useful signal
+7. **FastAPI Backend** — replace http.server with proper async API
+8. **Docker Compose** — containerized deployment
 
 ---
 
@@ -457,52 +394,54 @@ Vaani Corpus — IISc Bangalore (Gnani.ai's academic partner)
 
 ### Why Contextual MuRIL instead of DistilRoBERTa?
 
-The original plan used DistilRoBERTa as the text backbone (via HuggingFace pipeline). The implementation uses **Contextual MuRIL** (Multilingual Representations for Indian Languages) because:
-
-1. **Native Hindi understanding** — MuRIL is pre-trained on 11 Indian languages including Hindi, handling code-switching (Hindi+English) that DistilRoBERTa misses
-2. **Context windows** — role-tagged context (`[AGENT] prev [CUSTOMER] prev`) captures conversational dynamics
-3. **Multi-task learning** — 6 heads (emotion, intensity, sentiment, interaction-state, conduct-risk, uncertainty) share representations
+The implementation uses **Contextual MuRIL** because:
+1. **Native Hindi understanding** — pre-trained on 11 Indian languages including Hindi
+2. **Context windows** — role-tagged context captures conversational dynamics
+3. **Multi-task learning** — 6 heads share representations
 4. **237M params** (195M trainable) — significantly larger capacity than DistilRoBERTa (82M)
 
 ### Why Speaker-Normalized Acoustic Features?
 
-The acoustic system uses **speaker baselines** (early-call reference turns) instead of absolute features because:
-
 1. **Speaker variability** — pitch, energy, speaking rate vary dramatically between speakers
-2. **Baseline-relative features** — z-score deviation from each speaker's own baseline captures CHANGE, not absolute state
-3. **Frozen baselines** — early-call only (≥1.2s, min 3 turns, min 5s), never updated with later (potentially angry) turns
-4. **Robust statistics** — median + MAD (not mean + std) to handle outliers
+2. **Baseline-relative features** — z-score deviation captures CHANGE, not absolute state
+3. **Frozen baselines** — early-call only, never updated with later turns
+4. **Robust statistics** — median + MAD to handle outliers
 
 ### Why Learned Fusion instead of Confidence-Gated?
 
-The original plan used simple confidence-threshold gating. The implementation uses **learned gated fusion** because:
-
-1. **Text-dominates-neutral override** — when text=neutral but acoustic detects non-neutral, acoustic wins (fixes Hindi profanity mistranslation)
-2. **Audio provides CHANGE signal** — arousal/shift/escalation modulate text emotion, not compete with it
+1. **Text-dominates-neutral override** — acoustic wins when text=neutral but acoustic detects non-neutral
+2. **Audio provides CHANGE signal** — arousal/shift/escalation modulate text emotion
 3. **Confidence modulator** — acoustic shift boosts confidence when text is uncertain
 4. **Escalation detector** — sustained acoustic change overrides low-confidence text
 
-### Why pyannote + SpeechBrain instead of custom DSP diarization?
+### Why Gemini Flash for Compliance?
 
-The original roadmap planned a handcrafted pipeline: MFCC extraction → LPC formant estimation → cosine fingerprinting → rolling baseline updates. During implementation, this was replaced with:
+1. **Context understanding** — LLM distinguishes "कमीज" (shirt) from abusive Hindi words
+2. **False positive suppression** — LLM overrides keyword matches when contextually wrong
+3. **Multi-language** — handles Hindi+English code-switching in abuse detection
+4. **Speed** — Gemini Flash responds in <1s for compliance checks
 
-1. **pyannote/speaker-diarization-3.1** — state-of-the-art neural diarization model, handles overlapping speech, varying recording conditions, and accent diversity far better than cosine similarity on handcrafted features
-2. **SpeechBrain ECAPA-TDNN** — neural speaker embeddings that outperform MFCC+formant fingerprints by a large margin on speaker verification benchmarks
-3. **Sklearn silhouette scoring** — principled embedding-based confidence instead of ad-hoc "similarity difference < 0.05" thresholds
+### Why Parallel Pipeline?
 
-The key additions over pyannote's default output are:
-- **Merged turn splitting** — detects when pyannote assigns both speakers to one long turn
-- **Single-speaker detection** — handles mono-speaker calls without false splits
-- **Viterbi sequence decoding** — smooths ambiguous regions using transition priors
-- **Rolling separability curve** — identifies time regions where speaker separation is unreliable
-- **False split merging** — ML classifier trained to distinguish real speaker changes from over-segmentation
+The pipeline has natural parallelism:
+- **STT + Acoustic** are independent after diarization (different data dependencies)
+- **Text Emotion + Compliance** are independent after STT (both only need text)
+- Parallel execution reduces total pipeline time by ~30% on multi-core systems
 
 ---
 
-## Commits (13 total)
+## Commits (20 total)
 ```
+6bbe8ae fix: role resolution false positive + diarization tab crash
+c574531 feat: transcript-based role classifier replaces static first-speaker=agent
+9fbb601 feat: replace regex compliance with Gemini Flash LLM
+bc34811 fix: compliance engine false positives from fuzzy matching
+cbfd82a perf: parallel STT chunk transcription (5x) + concurrent acoustic/text emotion analysis
+a68cbb3 fix: compliance/qa/crm API endpoints return wrapped results matching frontend expectations
+fc0f685 docs: update roadmap with compliance/QA/CRM completion
 93fb8cc compliance: remove hell/damn/crap from English abuse list
 ed5ff00 compliance: expand Hindi abuse lexicon, compound patterns, threat detection
+97e566e docs: update roadmap to reflect svar package, acoustic system, fusion improvements
 2e56379 fusion: neutral-override when text=neutral but acoustic disagrees
 f06bbee data: add init
 d96ddb5 dashboard: EmoInHindi 16-class emotion chip CSS + uncertain style
@@ -528,4 +467,8 @@ Part 3 architecture is complete: schemas, calibration, turn repair, context buil
 
 ## Compliance + QA + CRM Checkpoint — REACHED ✅
 
-Full compliance engine with Hindi abuse lexicon (30+ words), compound phrase detection, threat/harassment patterns, RBI/IRDAI regex, Levenshtein fuzzy matching. QA scorer with 5-factor weighted scoring (customer sentiment, compliance, agent stability, intent resolution, talk ratio). CRM note generator with TF-IDF extractive summarization. All wired into dashboard with 10-tab UI.
+Full compliance engine with Gemini Flash LLM + keyword fallback, Hindi abuse lexicon (30+ words), compound phrase detection, threat/harassment patterns, RBI/IRDAI regex, Levenshtein fuzzy matching. QA scorer with 5-factor weighted scoring. CRM note generator with TF-IDF extractive summarization.
+
+## Parallel Pipeline Checkpoint — REACHED ✅
+
+Background pipeline with progress tracking, 9 stages with 2 parallel windows, Analyze button with progress bar, 8-tab dashboard with stage badges. All analysis runs server-side in background thread; tabs display cached results.

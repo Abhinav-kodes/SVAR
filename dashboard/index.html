@@ -33,7 +33,6 @@
       display:flex;flex-direction:column;
     }
 
-    /* ── Header ── */
     header{
       padding:0.9rem 1.5rem;border-bottom:1px solid var(--border);
       background:rgba(11,15,25,0.85);backdrop-filter:blur(12px);
@@ -51,15 +50,12 @@
     .brand-title{font-family:'Outfit',sans-serif;font-size:1.15rem;font-weight:700;letter-spacing:-0.4px}
     .brand-sub{font-size:0.72rem;color:var(--text-dim)}
     .header-right{display:flex;align-items:center;gap:0.75rem}
-    .badge{
-      padding:0.3rem 0.65rem;border-radius:999px;font-size:0.7rem;font-weight:600;
-      text-transform:uppercase;letter-spacing:0.4px;
-    }
+    .badge{padding:0.3rem 0.65rem;border-radius:999px;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.4px}
     .badge-green{background:rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3)}
     .badge-amber{background:rgba(245,158,11,0.15);color:var(--amber);border:1px solid rgba(245,158,11,0.3)}
     .badge-red{background:rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.3)}
+    .badge-cyan{background:rgba(6,182,212,0.15);color:var(--cyan);border:1px solid rgba(6,182,212,0.3)}
 
-    /* ── Layout ── */
     .app{display:flex;flex:1;overflow:hidden}
     .sidebar{
       width:280px;min-width:280px;border-right:1px solid var(--border);
@@ -79,7 +75,21 @@
     .file-name{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .file-ext{font-size:0.65rem;color:var(--text-dim);background:rgba(255,255,255,0.07);padding:0.1rem 0.35rem;border-radius:4px}
 
-    /* Tab nav */
+    .analyze-btn{
+      width:100%;padding:0.7rem;border-radius:10px;border:none;
+      background:linear-gradient(135deg,var(--cyan),var(--purple));
+      color:#fff;font-family:'Inter',sans-serif;font-size:0.88rem;font-weight:600;
+      cursor:pointer;transition:all 0.2s;margin-top:0.5rem;
+      box-shadow:0 4px 16px rgba(6,182,212,0.3);
+    }
+    .analyze-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(6,182,212,0.4)}
+    .analyze-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none;box-shadow:none}
+
+    .progress-wrap{margin-top:0.65rem;display:none}
+    .progress-bar-track{height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden}
+    .progress-bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--cyan),var(--purple));transition:width 0.4s;width:0%}
+    .progress-label{font-size:0.7rem;color:var(--text-dim);margin-top:0.3rem;display:flex;justify-content:space-between}
+
     .tab-nav{display:flex;flex-direction:column;gap:2px;padding:0.5rem 0.75rem}
     .tab-btn{
       display:flex;align-items:center;gap:0.55rem;padding:0.55rem 0.75rem;
@@ -94,13 +104,13 @@
       margin-left:auto;font-size:0.65rem;padding:0.1rem 0.35rem;
       border-radius:4px;background:rgba(255,255,255,0.06);color:var(--text-dim);
     }
+    .tab-badge.done{background:rgba(16,185,129,0.15);color:var(--green)}
+    .tab-badge.running{background:rgba(6,182,212,0.15);color:var(--cyan)}
 
-    /* Main */
     .main{flex:1;overflow-y:auto;padding:1.5rem;display:flex;flex-direction:column;gap:1.25rem}
     .tab-content{display:none}
     .tab-content.active{display:flex;flex-direction:column;gap:1.25rem}
 
-    /* Cards */
     .card{
       background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
       padding:1.25rem;backdrop-filter:blur(12px);box-shadow:0 8px 24px rgba(0,0,0,0.25);
@@ -111,7 +121,6 @@
     }
     .card-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.85rem}
 
-    /* Stat pills */
     .stat{padding:0.85rem;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid var(--border)}
     .stat-label{font-size:0.68rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:0.2rem}
     .stat-value{font-family:'Outfit',sans-serif;font-size:1.35rem;font-weight:700}
@@ -119,12 +128,10 @@
     .stat-value.green{color:var(--green)}.stat-value.red{color:var(--red)}
     .stat-value.purple{color:var(--purple)}.stat-value.pink{color:var(--pink)}
 
-    /* Audio */
     audio{width:100%;border-radius:8px;outline:none}
     .audio-pair{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
     .audio-label{font-size:0.72rem;color:var(--text-dim);margin-bottom:0.3rem;font-weight:500}
 
-    /* Timeline */
     .timeline-bar{
       height:32px;width:100%;background:rgba(255,255,255,0.04);border-radius:6px;
       position:relative;overflow:hidden;border:1px solid var(--border);cursor:pointer;
@@ -137,7 +144,6 @@
     .legend{display:flex;gap:1.2rem;font-size:0.78rem;margin-top:0.4rem;color:var(--text-dim)}
     .legend-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:0.3rem}
 
-    /* Table */
     .tbl-wrap{max-height:360px;overflow:auto;border-radius:8px;border:1px solid var(--border)}
     table{width:100%;border-collapse:collapse;font-size:0.82rem;text-align:left}
     th{background:rgba(255,255,255,0.04);padding:0.65rem 0.85rem;font-weight:600;color:var(--text-dim);position:sticky;top:0}
@@ -152,7 +158,6 @@
     .spk-tag.spk_0{background:rgba(6,182,212,0.12);color:var(--cyan);border:1px solid rgba(6,182,212,0.25)}
     .spk-tag.spk_1{background:rgba(245,158,11,0.12);color:var(--amber);border:1px solid rgba(245,158,11,0.25)}
 
-    /* Emotion chips — canonical EmoInHindi 16-class taxonomy */
     .emo-chip{display:inline-flex;align-items:center;gap:0.25rem;padding:0.15rem 0.5rem;border-radius:6px;font-size:0.72rem;font-weight:500}
     .emo-chip.neutral{background:rgba(148,163,184,0.12);color:#94a3b8}
     .emo-chip.anger{background:rgba(239,68,68,0.12);color:#f87171}
@@ -172,7 +177,6 @@
     .emo-chip.anticipation{background:rgba(6,182,212,0.12);color:#06b6d4}
     .emo-chip.uncertain{background:rgba(148,163,184,0.08);color:#64748b;border:1px dashed rgba(148,163,184,0.3)}
 
-    /* Grade ring */
     .grade-ring{
       width:120px;height:120px;border-radius:50%;display:flex;align-items:center;justify-content:center;
       flex-direction:column;margin:0 auto 0.75rem;position:relative;
@@ -181,14 +185,12 @@
     .grade-letter{font-family:'Outfit',sans-serif;font-size:2.5rem;font-weight:800;line-height:1}
     .grade-score{font-size:0.8rem;color:var(--text-dim)}
 
-    /* Score bar */
     .score-bar-row{display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem}
     .score-bar-label{width:130px;font-size:0.78rem;color:var(--text-dim);text-align:right}
     .score-bar-track{flex:1;height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden}
     .score-bar-fill{height:100%;border-radius:4px;transition:width 0.4s}
     .score-bar-val{width:40px;font-size:0.78rem;font-weight:600}
 
-    /* Compliance */
     .viol-row{display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:0.82rem}
     .viol-type{font-size:0.68rem;font-weight:600;padding:0.15rem 0.4rem;border-radius:4px}
     .viol-type.rbi{background:rgba(239,68,68,0.12);color:#f87171}
@@ -196,26 +198,15 @@
     .viol-type.abusive{background:rgba(236,72,153,0.12);color:#f472b6}
     .viol-type.threat{background:rgba(239,68,68,0.18);color:#ef4444}
 
-    /* CRM note */
     .crm-box{background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:10px;padding:1rem;font-size:0.85rem;line-height:1.6}
     .crm-keypoints{list-style:none;padding:0}
     .crm-keypoints li{padding:0.3rem 0;padding-left:1rem;position:relative}
     .crm-keypoints li::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:5px;height:5px;border-radius:50%;background:var(--cyan)}
 
-    /* Loading */
-    .loading{
-      display:none;position:fixed;inset:0;background:rgba(11,15,25,0.8);
-      backdrop-filter:blur(8px);z-index:200;align-items:center;justify-content:center;
-      flex-direction:column;gap:0.75rem;
-    }
+    .empty{text-align:center;padding:3rem 1rem;color:var(--text-dim);font-size:0.9rem}
     .spinner{width:44px;height:44px;border:3px solid rgba(6,182,212,0.2);border-top-color:var(--cyan);border-radius:50%;animation:spin 0.8s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
-    .load-text{font-weight:600;font-size:0.95rem}.load-sub{font-size:0.78rem;color:var(--text-dim)}
 
-    /* Empty state */
-    .empty{text-align:center;padding:3rem 1rem;color:var(--text-dim);font-size:0.9rem}
-
-    /* Responsive */
     @media(max-width:900px){
       .sidebar{width:220px;min-width:220px}
       .audio-pair{grid-template-columns:1fr}
@@ -239,18 +230,21 @@
     </div>
   </div>
   <div class="header-right">
-    <span id="modelBadge" class="badge badge-amber">Model: Not Loaded</span>
     <span id="processingTime" class="badge badge-green" style="display:none"></span>
   </div>
 </header>
 
 <div class="app">
-  <!-- Sidebar -->
   <div class="sidebar">
     <div class="sidebar-section">
       <div class="sidebar-title">Sample Calls</div>
       <div id="fileList" class="file-list">
         <div style="color:var(--text-dim);font-size:0.8rem">Loading...</div>
+      </div>
+      <button class="analyze-btn" id="analyzeBtn" disabled onclick="startAnalysis()">Analyze</button>
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill"></div></div>
+        <div class="progress-label"><span id="progressStage">-</span><span id="progressPct">0%</span></div>
       </div>
     </div>
     <div class="sidebar-section" style="flex:1;border-bottom:none">
@@ -259,22 +253,15 @@
     </div>
   </div>
 
-  <!-- Main content -->
   <div class="main" id="mainPanel">
     <div class="empty" id="emptyState">
       <div style="font-size:2rem;margin-bottom:0.5rem">📞</div>
-      Select a call recording to run the full pipeline
+      Select a call recording, then click <b>Analyze</b>
     </div>
-    <!-- Tab contents injected by JS -->
   </div>
 </div>
 
 <audio id="audioPlayer" controls style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:150;padding:0.5rem;background:var(--bg-dark);border-top:1px solid var(--border)"></audio>
-<div id="loadingOverlay" class="loading">
-  <div class="spinner"></div>
-  <div class="load-text">Running Full Pipeline...</div>
-  <div class="load-sub" id="loadStatus">Denoising → Diarization → STT → Emotion → Compliance → QA</div>
-</div>
 
 <script>
 const TABS = [
@@ -282,21 +269,28 @@ const TABS = [
   {id:'denoising',   icon:'🔇', label:'Denoising'},
   {id:'diarization', icon:'👥', label:'Diarization'},
   {id:'transcript',  icon:'📝', label:'Transcript'},
-  {id:'textemo',     icon:'💬', label:'Text Emotion'},
-  {id:'acousticemo', icon:'🎵', label:'Acoustic Emotion'},
-  {id:'fusion',      icon:'🔀', label:'Fusion'},
+  {id:'emotion',     icon:'💬', label:'Emotion'},
   {id:'compliance',  icon:'⚖️', label:'Compliance'},
   {id:'qascore',     icon:'🏆', label:'QA Score'},
   {id:'crm',         icon:'📋', label:'CRM Note'},
 ];
-const TAB_API = {
-  denoising:'/api/denoise', diarization:'/api/diarize', transcript:'/api/transcribe',
-  textemo:'/api/text-emotion', acousticemo:'/api/text-emotion', fusion:'/api/text-emotion', compliance:'/api/compliance',
-  qascore:'/api/qa-score', crm:'/api/crm-note',
+
+const TAB_DATA_KEY = {
+  summary: ['duration_s','processing_time_s','segments','talk_ratio','denoise_metrics','qa','compliance','fusion'],
+  denoising: ['denoise_metrics'],
+  diarization: ['segments','talk_ratio','role_resolution'],
+  transcript: ['segments'],
+  emotion: ['segments','fusion'],
+  compliance: ['compliance'],
+  qascore: ['qa'],
+  crm: ['crm_note','qa','compliance','fusion'],
 };
+
 let activeTab = 'summary';
 let activeFileName = '';
 let data = {};
+let pollTimer = null;
+let isAnalyzing = false;
 const audioPlayer = document.getElementById('audioPlayer');
 
 function initTabs(){
@@ -314,11 +308,24 @@ function initTabs(){
   switchTab(activeTab);
 }
 
+function setTabsLocked(locked){
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    if(locked && b.dataset.tab !== 'summary'){
+      b.style.opacity = '0.35';
+      b.style.pointerEvents = 'none';
+    } else {
+      b.style.opacity = '';
+      b.style.pointerEvents = '';
+    }
+  });
+}
+
 function switchTab(id){
+  if(isAnalyzing && id !== 'summary') return;
   activeTab = id;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab===id));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.dataset.tab===id));
-  if(activeFileName && TAB_API[id]) loadTab(id);
+  renderActiveTab();
 }
 
 function renderTabContents(){
@@ -332,23 +339,131 @@ function renderTabContents(){
   });
 }
 
-async function loadTab(tabId){
-  const api = TAB_API[tabId];
-  if(!api || !activeFileName) return;
-  const el = document.getElementById('tab-'+tabId);
-  el.innerHTML = '<div class="empty"><div class="spinner" style="width:28px;height:28px;margin:0 auto 0.5rem;border-width:2px"></div>Loading '+tabId+'...</div>';
+function hasData(tabId){
+  const keys = TAB_DATA_KEY[tabId] || [];
+  return keys.some(k => data[k] != null && (typeof data[k] !== 'object' || Object.keys(data[k]).length > 0) && !(Array.isArray(data[k]) && data[k].length === 0));
+}
+
+function updateTabBadges(){
+  TABS.forEach(t => {
+    const badge = document.getElementById('badge-'+t.id);
+    if(!badge) return;
+    if(isAnalyzing){
+      const stageMap = {denoising:'denoise',diarization:'diarize',transcript:'stt',emotion:'fusion',compliance:'compliance',qascore:'qa',crm:'crm'};
+      badge.className = 'tab-badge';
+    } else if(hasData(t.id)){
+      badge.className = 'tab-badge done';
+      badge.textContent = '✓';
+    } else {
+      badge.className = 'tab-badge';
+      badge.textContent = '';
+    }
+  });
+}
+
+/* ── Analyze ── */
+async function startAnalysis(){
+  if(!activeFileName || isAnalyzing) return;
+  isAnalyzing = true;
+  setTabsLocked(true);
+  switchTab('summary');
+  data = {};
+  TABS.forEach(t => {
+    const el = document.getElementById('tab-'+t.id);
+    if(el) el.innerHTML = '';
+  });
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.textContent = 'Analyzing...';
+  const pw = document.getElementById('progressWrap');
+  pw.style.display = 'block';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('progressStage').textContent = 'Starting...';
+  document.getElementById('progressPct').textContent = '0%';
+  updateTabBadges();
   try{
-    const res = await fetch(api, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:activeFileName})});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const d = await res.json();
-    Object.assign(data, d);
-    if(d.segments) data.segments = d.segments;
-    renderActiveTab();
+    await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:activeFileName})});
+    startPolling();
   }catch(e){
-    el.innerHTML = '<div class="empty" style="color:var(--red)">Error: '+e.message+'</div>';
+    isAnalyzing = false;
+    setTabsLocked(false);
+    btn.disabled = false;
+    btn.textContent = 'Analyze';
+    pw.style.display = 'none';
   }
 }
 
+function startPolling(){
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollProgress, 1500);
+  pollProgress();
+}
+
+async function pollProgress(){
+  try{
+    const res = await fetch('/api/progress?file='+encodeURIComponent(activeFileName));
+    const p = await res.json();
+    const fill = document.getElementById('progressFill');
+    const stage = document.getElementById('progressStage');
+    const pct = document.getElementById('progressPct');
+    fill.style.width = p.percent+'%';
+    pct.textContent = p.percent+'%';
+    const stageLabels = {denoise:'Denoising',diarize:'Diarization',stt:'Speech-to-Text',acoustic:'Acoustic',text_emo:'Text Emotion',compliance:'Compliance',fusion:'Emotion Fusion',qa:'QA Scoring',crm:'CRM Note'};
+    stage.textContent = p.status==='completed' ? 'Done' : p.status==='error' ? 'Error: '+(p.error||'') : (stageLabels[p.current_stage]||p.current_stage||'Starting...');
+    updateStageBadges(p);
+    if(p.status==='completed' || p.status==='error'){
+      clearInterval(pollTimer);
+      pollTimer = null;
+      isAnalyzing = false;
+      setTabsLocked(false);
+      const btn = document.getElementById('analyzeBtn');
+      btn.disabled = false;
+      btn.textContent = 'Analyze';
+      if(p.status==='completed'){
+        await fetchAllResults();
+        if(p.time_s){
+          const pt = document.getElementById('processingTime');
+          pt.textContent = p.time_s+'s';
+          pt.style.display = 'inline';
+        }
+      }
+      updateTabBadges();
+      renderActiveTab();
+    }
+  }catch(e){}
+}
+
+function updateStageBadges(p){
+  if(!p.stages) return;
+  const stageTabMap = {denoise:'denoising',diarize:'diarization',stt:'transcript',acoustic:'emotion',text_emo:'emotion',compliance:'compliance',fusion:'emotion',qa:'qascore',crm:'crm'};
+  for(const [sid, info] of Object.entries(p.stages)){
+    const tabId = stageTabMap[sid];
+    if(!tabId) continue;
+    const badge = document.getElementById('badge-'+tabId);
+    if(!badge) continue;
+    if(info.status==='done'){badge.className='tab-badge done';badge.textContent='✓'}
+    else if(info.status==='running'){badge.className='tab-badge running';badge.textContent='●'}
+  }
+}
+
+async function fetchAllResults(){
+  const endpoints = {
+    denoising:'/api/denoise', diarization:'/api/diarize', transcript:'/api/transcribe',
+    emotion:'/api/emotion', compliance:'/api/compliance', qascore:'/api/qa-score', crm:'/api/crm-note',
+  };
+  const results = await Promise.all(
+    Object.entries(endpoints).map(async ([key, url]) => {
+      try{
+        const res = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:activeFileName})});
+        if(res.ok) return [key, await res.json()];
+      }catch(e){}
+      return [key, null];
+    })
+  );
+  results.forEach(([key, d]) => { if(d) Object.assign(data, d); });
+}
+
+/* ── Spk label ── */
 function spkLabel(s){
   if(s==='agent') return 'Agent';
   if(s==='customer') return 'Cust';
@@ -357,20 +472,22 @@ function spkLabel(s){
   return s||'?';
 }
 
+/* ── Render dispatch ── */
 function renderActiveTab(){
   const r = {
     summary: renderSummary, denoising: renderDenoising, diarization: renderDiarization,
-    transcript: renderTranscript, textemo: renderTextEmotion, acousticemo: renderAcousticEmotion,
-    fusion: renderFusion, compliance: renderCompliance, qascore: renderQAScore, crm: renderCRM,
+    transcript: renderTranscript, emotion: renderEmotion,
+    compliance: renderCompliance, qascore: renderQAScore, crm: renderCRM,
   };
   if(r[activeTab]) r[activeTab](data);
+  updateTabBadges();
 }
 
 /* ── Render functions ── */
 
 function renderSummary(d){
   const el = document.getElementById('tab-summary');
-  if(!d){el.innerHTML='<div class="empty">Run a call to see summary</div>';return}
+  if(!d || !d.segments){el.innerHTML='<div class="empty">Run a call to see summary</div>';return}
   const talk = d.talk_ratio || {};
   const qa = d.qa || {};
   const comp = d.compliance || {};
@@ -413,16 +530,13 @@ function renderSummary(d){
       </div>
     </div>
   `;
-
-  // animate grade ring
   if(qa.qa_score !== undefined){
     const pct = qa.qa_score / 100;
     const offset = 339.29 * (1 - pct);
     document.getElementById('gradeArc').style.strokeDashoffset = offset;
     const colors = {A:'var(--green)',B:'var(--cyan)',C:'var(--amber)',D:'var(--red)'};
-    const gArc = document.getElementById('gradeArc');
+    document.getElementById('gradeArc').style.stroke = colors[qa.grade] || 'var(--cyan)';
     const gLet = document.getElementById('gradeLetter');
-    gArc.style.stroke = colors[qa.grade] || 'var(--cyan)';
     gLet.style.color = colors[qa.grade] || 'var(--cyan)';
     gLet.textContent = qa.grade;
     document.getElementById('gradeScore').textContent = qa.qa_score + ' pts';
@@ -507,7 +621,6 @@ function renderDiarization(d){
     tr.onclick = () => { audioPlayer.currentTime = s.start_time_s; audioPlayer.play(); };
     tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${spkLabel(s.speaker)}</span></td><td>${s.start_time_s?.toFixed(2)||'--'}s</td><td>${s.end_time_s?.toFixed(2)||'--'}s</td><td>${s.duration_s?.toFixed(2)||'--'}s</td><td>${s.confidence != null ? (s.confidence*100).toFixed(0)+'%' : '--'} ${s.uncertain?'⚠️':'✅'}</td>`;
     tbody.appendChild(tr);
-
     const seg = document.createElement('div');
     const colorClass = s.speaker === 'agent' ? 'agent' : s.speaker === 'customer' ? 'customer' : s.speaker;
     seg.className = 'tl-seg ' + colorClass;
@@ -548,69 +661,23 @@ function renderTranscript(d){
   });
 }
 
-function renderTextEmotion(d){
-  const el = document.getElementById('tab-textemo');
-  if(!d?.segments){el.innerHTML='<div class="empty">No text emotion data</div>';return}
-  el.innerHTML = `
-    <div class="card"><div class="card-title">💬 Text Emotion (MuRIL)</div>
-      <div class="tbl-wrap"><table>
-        <thead><tr><th>#</th><th>Speaker</th><th>Emotion</th><th>Sentiment</th><th>Confidence</th><th>Text</th></tr></thead>
-        <tbody id="textEmoBody"></tbody>
-      </table></div>
-    </div>
-  `;
-  const body = document.getElementById('textEmoBody');
-  d.segments.forEach((s,i) => {
-    const emo = s.emotion || 'neutral';
-    const sent = s.sentiment || 'neutral';
-    const conf = s.confidence || 0;
-    const tr = document.createElement('tr');
-    tr.id = 'te-row-'+i;
-    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${spkLabel(s.speaker)}</span></td><td><span class="emo-chip ${emo}">${emo}</span></td><td><span class="emo-chip ${sent}">${sent}</span></td><td>${(conf*100).toFixed(0)}%</td><td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.78rem;color:var(--text-dim)">${s.text||''}</td>`;
-    body.appendChild(tr);
-  });
-}
-
-function renderAcousticEmotion(d){
-  const el = document.getElementById('tab-acousticemo');
-  const segs = d?.segments || [];
-  const results = segs.map(s => s.acoustic_emotion).filter(Boolean);
-  if(!results.length){el.innerHTML='<div class="empty">No acoustic emotion data — run transcript first</div>';return}
-  el.innerHTML = `
-    <div class="card"><div class="card-title">🎵 Acoustic Emotion (Prosodic)</div>
-      <div class="tbl-wrap"><table>
-        <thead><tr><th>#</th><th>Speaker</th><th>Emotion</th><th>Confidence</th><th>Indeterminate</th></tr></thead>
-        <tbody id="acEmoBody"></tbody>
-      </table></div>
-    </div>
-  `;
-  const body = document.getElementById('acEmoBody');
-  segs.forEach((s,i) => {
-    const r = s.acoustic_emotion || {};
-    const tr = document.createElement('tr');
-    tr.id = 'ae-row-'+i;
-    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker||'spk_0'}">${spkLabel(s.speaker||'spk_0')}</span></td><td><span class="emo-chip ${r.emotion||'neutral'}">${r.emotion||'neutral'}</span></td><td>${((r.confidence||0)*100).toFixed(0)}%</td><td>${r.indeterminate?'⚠️':'✅'}</td>`;
-    body.appendChild(tr);
-  });
-}
-
-function renderFusion(d){
-  const el = document.getElementById('tab-fusion');
+function renderEmotion(d){
+  const el = document.getElementById('tab-emotion');
   const fused = d?.fusion;
-  if(!fused || !fused.length){el.innerHTML='<div class="empty">No fusion data</div>';return}
+  if(!fused || !fused.length){el.innerHTML='<div class="empty">No emotion data</div>';return}
   el.innerHTML = `
-    <div class="card"><div class="card-title">🔀 Fused Emotion Results</div>
+    <div class="card"><div class="card-title">💬 Emotion Analysis</div>
       <div class="tbl-wrap"><table>
         <thead><tr><th>#</th><th>Speaker</th><th>Emotion</th><th>Sentiment</th><th>Confidence</th><th>Source</th></tr></thead>
-        <tbody id="fusionBody"></tbody>
+        <tbody id="emotionBody"></tbody>
       </table></div>
     </div>
   `;
-  const body = document.getElementById('fusionBody');
+  const body = document.getElementById('emotionBody');
   d.segments.forEach((s,i) => {
     const f = fused[i] || {};
     const tr = document.createElement('tr');
-    tr.id = 'fu-row-'+i;
+    tr.id = 'emo-row-'+i;
     tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${spkLabel(s.speaker)}</span></td><td><span class="emo-chip ${f.emotion||'neutral'}">${f.emotion||'neutral'}</span></td><td><span class="emo-chip ${f.sentiment||'neutral'}">${f.sentiment||'neutral'}</span></td><td>${((f.confidence||0)*100).toFixed(0)}%</td><td style="font-size:0.75rem;color:var(--text-dim)">${f.source||'--'}${f.text_weight?' tw:'+f.text_weight:''}</td>`;
     body.appendChild(tr);
   });
@@ -715,12 +782,8 @@ if(audioPlayer){
         tr.classList.toggle('active-row', active);
         if(active) tr.scrollIntoView({behavior:'smooth',block:'nearest'});
       }
-      const te = document.getElementById('te-row-'+i);
-      if(te) te.classList.toggle('active-row', active);
-      const fu = document.getElementById('fu-row-'+i);
-      if(fu) fu.classList.toggle('active-row', active);
-      const ae = document.getElementById('ae-row-'+i);
-      if(ae) ae.classList.toggle('active-row', active);
+      const em = document.getElementById('emo-row-'+i);
+      if(em) em.classList.toggle('active-row', active);
     });
   };
 }
@@ -747,6 +810,8 @@ async function loadSampleCalls(){
 async function selectFile(filename){
   activeFileName = filename;
   data = {};
+  isAnalyzing = false;
+  if(pollTimer){clearInterval(pollTimer);pollTimer=null}
   document.querySelectorAll('.file-item').forEach(el => el.classList.toggle('active', el.dataset.file===filename));
   if(audioPlayer){
     audioPlayer.src = '/audio/'+filename;
@@ -757,6 +822,12 @@ async function selectFile(filename){
     if(el) el.innerHTML = '';
   });
   document.getElementById('emptyState').style.display='none';
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = false;
+  btn.textContent = 'Analyze';
+  document.getElementById('progressWrap').style.display='none';
+  document.getElementById('processingTime').style.display='none';
+  updateTabBadges();
   switchTab('summary');
 }
 

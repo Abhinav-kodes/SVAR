@@ -3,11 +3,13 @@ import sys
 import gc
 import json
 import time
+import threading
 import http.server
 import socketserver
 import urllib.parse
 import numpy as np
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, REPO_ROOT)
@@ -19,7 +21,21 @@ PORT = 8050
 SAMPLE_CALLS_DIR = os.path.join(REPO_ROOT, "data", "sample_calls")
 DASHBOARD_DIR = os.path.join(REPO_ROOT, "dashboard")
 
+STAGES = [
+    {"id": "denoise",    "label": "Denoising"},
+    {"id": "diarize",    "label": "Diarization"},
+    {"id": "stt",        "label": "Speech-to-Text"},
+    {"id": "acoustic",   "label": "Acoustic Emotion"},
+    {"id": "text_emo",   "label": "Text Emotion"},
+    {"id": "compliance", "label": "Compliance"},
+    {"id": "fusion",     "label": "Emotion Fusion"},
+    {"id": "qa",         "label": "QA Scoring"},
+    {"id": "crm",        "label": "CRM Note"},
+]
+
 _cache = {}
+_progress = {}
+_progress_lock = threading.Lock()
 _denoiser = None
 _diarizer = None
 _stt = None
@@ -101,95 +117,106 @@ def _send_json(handler, data, status=200):
     handler.wfile.write(json.dumps(data).encode("utf-8"))
 
 
-def api_denoise(handler, filename):
+# ── Progress tracking ──
+
+def _init_progress(filename):
+    with _progress_lock:
+        _progress[filename] = {
+            "status": "running",
+            "current_stage": "",
+            "percent": 0,
+            "stages": {s["id"]: {"status": "pending", "time_s": 0} for s in STAGES},
+            "error": None,
+            "start_time": time.time(),
+        }
+
+
+def _set_stage(filename, stage_id, status):
+    with _progress_lock:
+        p = _progress.get(filename)
+        if p:
+            p["current_stage"] = stage_id
+            if status == "running":
+                p["stages"][stage_id]["status"] = "running"
+            elif status == "done":
+                p["stages"][stage_id]["status"] = "done"
+            elif status == "error":
+                p["stages"][stage_id]["status"] = "error"
+            done = sum(1 for s in p["stages"].values() if s["status"] == "done")
+            p["percent"] = round(done / len(STAGES) * 100)
+
+
+def _finish_progress(filename, error=None):
+    with _progress_lock:
+        p = _progress.get(filename)
+        if p:
+            p["status"] = "error" if error else "completed"
+            p["percent"] = 100 if not error else p["percent"]
+            p["error"] = error
+            p["time_s"] = round(time.time() - p["start_time"], 1)
+
+
+def _timed_stage(filename, stage_id, fn):
+    _set_stage(filename, stage_id, "running")
+    t0 = time.time()
+    try:
+        result = fn()
+        elapsed = round(time.time() - t0, 2)
+        with _progress_lock:
+            p = _progress.get(filename)
+            if p:
+                p["stages"][stage_id]["time_s"] = elapsed
+        _set_stage(filename, stage_id, "done")
+        log(f"  [{stage_id}] done in {elapsed}s")
+        return result
+    except Exception as e:
+        _set_stage(filename, stage_id, "error")
+        raise
+
+
+# ── Pipeline stages ──
+
+def stage_denoise(filename):
     c = _ensure_cache(filename)
     if "denoise_metrics" in c:
-        return c["denoise_metrics"]
-
+        return
     filepath = os.path.join(SAMPLE_CALLS_DIR, filename)
-    t0 = time.time()
     audio, sr = load_audio(filepath, target_sr=16000)
     c["audio"] = audio
     c["sr"] = sr
     c["duration"] = round(float(len(audio) / sr), 2)
-    log(f"  Audio loaded: {c['duration']}s ({time.time()-t0:.2f}s)")
-
-    t0 = time.time()
     clean_audio, metrics = _get_denoiser().process(audio, sr)
     c["clean_audio"] = clean_audio
     c["denoise_metrics"] = metrics
-    log(f"  Denoised: SNR {metrics['snr_before_db']:.1f}→{metrics['snr_after_db']:.1f}dB ({time.time()-t0:.2f}s)")
-
-    return {
-        "duration_s": c["duration"],
-        "denoise_metrics": metrics,
-    }
 
 
-def api_diarize(handler, filename):
+def stage_diarize(filename):
     c = _ensure_cache(filename)
     if "segments" in c:
-        return {
-            "duration_s": c["duration"],
-            "segments": c["segments"],
-            "talk_ratio": c.get("talk_ratio", {}),
-            "separability": c.get("separability", []),
-            "confidence_method": c.get("confidence_method", ""),
-        }
-
+        return
     if "clean_audio" not in c:
-        api_denoise(handler, filename)
-
-    t0 = time.time()
+        stage_denoise(filename)
     res = _get_diarizer().process(c["clean_audio"], c["sr"])
     c["segments"] = res["segments"]
     c["talk_ratio"] = res.get("talk_ratio", {})
     c["separability"] = res.get("separability", [])
     c["confidence_method"] = res.get("confidence_method", "")
-    log(f"  Diarized: {len(res['segments'])} segments ({time.time()-t0:.1f}s)")
-
     import torch
     if torch.cuda.is_available():
         from diarization.pipeline import DiarizationPipeline
         DiarizationPipeline.offload_to_cpu()
-        free = torch.cuda.mem_get_info()[0] / (1024**3)
-        log(f"  GPU freed, {free:.1f}GB available")
-
-    return {
-        "duration_s": c["duration"],
-        "segments": c["segments"],
-        "talk_ratio": c["talk_ratio"],
-        "separability": c["separability"],
-        "confidence_method": c["confidence_method"],
-    }
 
 
-def api_transcribe(handler, filename):
+def stage_stt(filename):
     c = _ensure_cache(filename)
     if c.get("transcribed"):
-        return {
-            "duration_s": c["duration"],
-            "segments": c["segments"],
-            "talk_ratio": c.get("talk_ratio", {}),
-        }
-
+        return
     if "segments" not in c:
-        api_diarize(handler, filename)
-
-    t0 = time.time()
+        stage_diarize(filename)
     stt = _get_stt()
-    sr = c["sr"]
-    audio = c["clean_audio"]
-
-    transcript = stt.transcribe_diarized_segments(c["segments"], audio, sr, language="hi")
-    log(f"  Transcribed: {len(transcript)} segments ({time.time()-t0:.1f}s)")
-
+    transcript = stt.transcribe_diarized_segments(c["segments"], c["clean_audio"], c["sr"], language="hi")
     c["segments"] = transcript
     c["transcribed"] = True
-    n_text = sum(1 for s in transcript if s.get("text"))
-    log(f"  Non-empty: {n_text}/{len(transcript)} segments ({time.time()-t0:.1f}s)")
-
-    t_role = time.time()
     engine = _get_role_engine()
     resolution = engine.resolve(c["segments"])
     engine.apply_mapping(c["segments"], resolution)
@@ -205,162 +232,226 @@ def api_transcribe(handler, filename):
     elif resolution.method == "heuristic" and resolution.applied:
         c["role_resolution"]["confidence"] = 1.0
         c["role_resolution"]["status"] = "resolved"
-    log(f"  Role resolution: {resolution.method} {resolution.role_mapping} ({time.time()-t_role:.1f}s)")
-
-    return {
-        "duration_s": c["duration"],
-        "segments": c["segments"],
-        "talk_ratio": c.get("talk_ratio", {}),
-        "role_resolution": c["role_resolution"],
-    }
 
 
-def api_text_emotion(handler, filename):
+def stage_acoustic(filename):
     c = _ensure_cache(filename)
-    if c.get("emotion_analyzed"):
-        return {
-            "duration_s": c["duration"],
-            "segments": c["segments"],
-            "fusion": c.get("fusion", []),
-        }
+    if c.get("acoustic_done"):
+        return
+    if "segments" not in c:
+        stage_diarize(filename)
+    analyze = _get_acoustic()
+    clean_audio = c.get("clean_audio")
+    sr = c.get("sr", 16000)
+    if clean_audio is not None:
+        analyze(clean_audio, sr, c["segments"])
+    else:
+        for seg in c["segments"]:
+            seg["acoustic_emotion"] = {
+                "emotion": "neutral", "confidence": 0.0,
+                "indeterminate": True, "all_scores": {},
+                "prosodic_features": {}, "deltas": {},
+            }
+    c["acoustic_done"] = True
 
+
+def stage_text_emotion(filename):
+    c = _ensure_cache(filename)
+    if c.get("text_emo_done"):
+        return
     if not c.get("transcribed"):
-        api_transcribe(handler, filename)
+        stage_stt(filename)
+    classify_batch = _get_emotion_classifier()
+    texts = [seg.get("text", "") for seg in c["segments"]]
+    batch_results = classify_batch(texts, batch_size=16)
+    c["text_emotions"] = []
+    for i, seg in enumerate(c["segments"]):
+        r = batch_results[i] if i < len(batch_results) else {"emotion": "neutral", "sentiment": "neutral", "confidence": 0.0}
+        c["text_emotions"].append({
+            "emotion": r["emotion"],
+            "confidence": r["confidence"],
+            "sentiment": r["sentiment"],
+        })
+    c["text_emo_done"] = True
 
-    t0 = time.time()
 
-    from concurrent.futures import ThreadPoolExecutor
+def stage_compliance(filename):
+    c = _ensure_cache(filename)
+    if "compliance" in c:
+        return
+    if not c.get("transcribed"):
+        stage_stt(filename)
+    from sentiment.compliance_engine import analyze_call
+    c["compliance"] = analyze_call(c["segments"])
 
-    def _run_text_emotion():
-        classify_batch = _get_emotion_classifier()
-        texts = [seg.get("text", "") for seg in c["segments"]]
-        batch_results = classify_batch(texts, batch_size=16)
-        results = []
-        for i, seg in enumerate(c["segments"]):
-            r = batch_results[i] if i < len(batch_results) else {"emotion": "neutral", "sentiment": "neutral", "confidence": 0.0}
-            results.append({
-                "emotion": r["emotion"],
-                "confidence": r["confidence"],
-                "sentiment": r["sentiment"],
-            })
-        return results
 
-    def _run_acoustic_emotion():
-        analyze = _get_acoustic()
-        clean_audio = c.get("clean_audio")
-        sr = c.get("sr", 16000)
-        if clean_audio is not None:
-            analyze(clean_audio, sr, c["segments"])
-        else:
-            for seg in c["segments"]:
-                seg["acoustic_emotion"] = {
-                    "emotion": "neutral", "confidence": 0.0,
-                    "indeterminate": True, "all_scores": {},
-                    "prosodic_features": {}, "deltas": {},
-                }
-
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        text_future = pool.submit(_run_text_emotion)
-        acoustic_future = pool.submit(_run_acoustic_emotion)
-        text_results = text_future.result()
-        acoustic_future.result()
-
-    log(f"  Text + acoustic emotion parallel ({time.time()-t0:.1f}s)")
-
-    t2 = time.time()
+def stage_fusion(filename):
+    c = _ensure_cache(filename)
+    if c.get("fusion"):
+        return
+    if not c.get("text_emo_done"):
+        stage_text_emotion(filename)
+    if not c.get("acoustic_done"):
+        stage_acoustic(filename)
     from sentiment.fusion_layer import fuse_segments
-    fused = fuse_segments(text_results, [
+    fused = fuse_segments(c["text_emotions"], [
         seg.get("acoustic_emotion", {
             "emotion": "neutral", "confidence": 0.0, "indeterminate": True
         }) for seg in c["segments"]
     ])
-    log(f"  Fusion done ({time.time()-t2:.1f}s)")
-
     for i, seg in enumerate(c["segments"]):
         if i < len(fused):
             seg["emotion"] = fused[i]["emotion"]
             seg["sentiment"] = fused[i]["sentiment"]
             seg["confidence"] = fused[i]["confidence"]
             seg["fusion_source"] = fused[i].get("source", "text")
-
     c["fusion"] = fused
-    c["emotion_analyzed"] = True
-    log(f"  Emotion pipeline done ({time.time()-t0:.1f}s)")
 
+
+def stage_qa(filename):
+    c = _ensure_cache(filename)
+    if "qa" in c:
+        return
+    if "compliance" not in c:
+        stage_compliance(filename)
+    if not c.get("fusion"):
+        stage_fusion(filename)
+    from sentiment.qa_scorer import score_call
+    c["qa"] = score_call(c["segments"], c["fusion"], c["compliance"])
+
+
+def stage_crm(filename):
+    c = _ensure_cache(filename)
+    if "crm_note" in c:
+        return
+    if "qa" not in c:
+        stage_qa(filename)
+    from sentiment.crm_note_generator import generate_crm_note
+    transcript = " ".join(s.get("text", "") for s in c["segments"] if s.get("text"))
+    c["crm_note"] = generate_crm_note(transcript, c["fusion"], c["compliance"], c["qa"])
+
+
+# ── Background pipeline runner ──
+
+_pipeline_lock = threading.Lock()
+
+
+def _run_pipeline(filename):
+    with _pipeline_lock:
+        _init_progress(filename)
+        try:
+            c = _ensure_cache(filename)
+            t0 = time.time()
+
+            _timed_stage(filename, "denoise", lambda: stage_denoise(filename))
+            _timed_stage(filename, "diarize", lambda: stage_diarize(filename))
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                stt_f = pool.submit(_timed_stage, filename, "stt", lambda: stage_stt(filename))
+                ac_f = pool.submit(_timed_stage, filename, "acoustic", lambda: stage_acoustic(filename))
+                stt_f.result()
+                ac_f.result()
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                te_f = pool.submit(_timed_stage, filename, "text_emo", lambda: stage_text_emotion(filename))
+                co_f = pool.submit(_timed_stage, filename, "compliance", lambda: stage_compliance(filename))
+                te_f.result()
+                co_f.result()
+
+            _timed_stage(filename, "fusion", lambda: stage_fusion(filename))
+            _timed_stage(filename, "qa", lambda: stage_qa(filename))
+            _timed_stage(filename, "crm", lambda: stage_crm(filename))
+
+            total = round(time.time() - t0, 1)
+            c["processing_time_s"] = total
+            _finish_progress(filename)
+            log(f"  Pipeline complete: {filename} ({total}s)")
+
+        except Exception as e:
+            import traceback
+            log(f"  Pipeline ERROR: {e}")
+            traceback.print_exc()
+            _finish_progress(filename, error=str(e))
+
+
+# ── API handler functions ──
+
+def api_analyze(handler, filename):
+    c = _ensure_cache(filename)
+    with _progress_lock:
+        existing = _progress.get(filename)
+    if existing and existing["status"] == "running":
+        return {"status": "running", "message": "Pipeline already running"}
+    if c.get("crm_note") and existing and existing["status"] == "completed":
+        return {"status": "completed", "message": "Already analyzed"}
+    thread = threading.Thread(target=_run_pipeline, args=(filename,), daemon=True)
+    thread.start()
+    return {"status": "started", "message": "Pipeline started"}
+
+
+def api_denoise(handler, filename):
+    c = _ensure_cache(filename)
     return {
-        "duration_s": c["duration"],
-        "segments": c["segments"],
-        "fusion": c["fusion"],
+        "duration_s": c.get("duration"),
+        "denoise_metrics": c.get("denoise_metrics"),
+    }
+
+
+def api_diarize(handler, filename):
+    c = _ensure_cache(filename)
+    return {
+        "duration_s": c.get("duration"),
+        "segments": c.get("segments"),
+        "talk_ratio": c.get("talk_ratio", {}),
+        "separability": c.get("separability", []),
+        "confidence_method": c.get("confidence_method", ""),
+        "role_resolution": c.get("role_resolution", {}),
+    }
+
+
+def api_transcribe(handler, filename):
+    c = _ensure_cache(filename)
+    return {
+        "duration_s": c.get("duration"),
+        "segments": c.get("segments"),
+        "talk_ratio": c.get("talk_ratio", {}),
+        "role_resolution": c.get("role_resolution", {}),
+    }
+
+
+def api_emotion(handler, filename):
+    c = _ensure_cache(filename)
+    return {
+        "duration_s": c.get("duration"),
+        "segments": c.get("segments"),
+        "fusion": c.get("fusion", []),
     }
 
 
 def api_compliance(handler, filename):
     c = _ensure_cache(filename)
-    if "compliance" not in c:
-        if not c.get("emotion_analyzed"):
-            api_text_emotion(handler, filename)
-        from sentiment.compliance_engine import analyze_call
-        c["compliance"] = analyze_call(c["segments"])
-    return {"compliance": c["compliance"]}
+    return {"compliance": c.get("compliance")}
 
 
 def api_qa_score(handler, filename):
     c = _ensure_cache(filename)
-    if "compliance" not in c:
-        api_compliance(handler, filename)
-    if "fusion" not in c:
-        api_text_emotion(handler, filename)
-    if "qa" not in c:
-        from sentiment.qa_scorer import score_call
-        c["qa"] = score_call(c["segments"], c["fusion"], c["compliance"])
-    return {"qa": c["qa"]}
+    return {"qa": c.get("qa")}
 
 
 def api_crm_note(handler, filename):
     c = _ensure_cache(filename)
-    if "qa" not in c:
-        api_qa_score(handler, filename)
-    if "crm_note" not in c:
-        from sentiment.crm_note_generator import generate_crm_note
-        transcript = " ".join(s.get("text", "") for s in c["segments"] if s.get("text"))
-        c["crm_note"] = generate_crm_note(transcript, c["fusion"], c["compliance"], c["qa"])
-    return {"crm_note": c["crm_note"]}
-
-
-def api_full(handler, filename):
-    c = _ensure_cache(filename)
-    api_denoise(handler, filename)
-    api_diarize(handler, filename)
-    api_transcribe(handler, filename)
-    api_text_emotion(handler, filename)
-    api_compliance(handler, filename)
-    api_qa_score(handler, filename)
-    api_crm_note(handler, filename)
-    return {
-        "duration_s": c["duration"],
-        "processing_time_s": 0,
-        "talk_ratio": c.get("talk_ratio", {}),
-        "segments": c["segments"],
-        "separability": c.get("separability", []),
-        "confidence_method": c.get("confidence_method", ""),
-        "denoise_metrics": c.get("denoise_metrics", {}),
-        "fusion": c.get("fusion", []),
-        "acoustic_results": [],
-        "compliance": c.get("compliance", {}),
-        "qa": c.get("qa", {}),
-        "crm_note": c.get("crm_note", {}),
-    }
+    return {"crm_note": c.get("crm_note")}
 
 
 API_ROUTES = {
+    "/api/analyze": api_analyze,
     "/api/denoise": api_denoise,
     "/api/diarize": api_diarize,
     "/api/transcribe": api_transcribe,
-    "/api/text-emotion": api_text_emotion,
+    "/api/emotion": api_emotion,
     "/api/compliance": api_compliance,
     "/api/qa-score": api_qa_score,
     "/api/crm-note": api_crm_note,
-    "/api/analyze": api_full,
 }
 
 
@@ -369,6 +460,7 @@ class DashboardHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+        qs = urllib.parse.parse_qs(parsed.query)
 
         if path == "/favicon.ico":
             self.send_response(204)
@@ -383,13 +475,11 @@ class DashboardHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(f.read())
             return
 
-        if path == "/api/model_status":
-            _send_json(self, {
-                "denoiser": _denoiser is not None,
-                "diarizer": _diarizer is not None,
-                "stt": _stt is not None,
-                "muril": _muril_model is not None,
-            })
+        if path == "/api/progress":
+            filename = qs.get("file", [""])[0]
+            with _progress_lock:
+                p = _progress.get(filename, {"status": "idle", "percent": 0, "stages": {}})
+            _send_json(self, p)
             return
 
         if path == "/api/sample_calls":
@@ -397,7 +487,6 @@ class DashboardHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 f for f in os.listdir(SAMPLE_CALLS_DIR)
                 if f.endswith(('.wav', '.mp3', '.opus')) and not f.endswith('_denoised.wav')
             ])
-            log(f"GET /api/sample_calls → {len(files)} files")
             _send_json(self, files)
             return
 
@@ -431,10 +520,7 @@ class DashboardHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 filename = payload.get("filename", "")
 
                 handler_fn = API_ROUTES[path]
-                log(f"POST {path} → '{filename}'")
-                t0 = time.time()
                 result = handler_fn(self, filename)
-                log(f"  {path} done in {time.time()-t0:.1f}s")
                 _send_json(self, result)
             except FileNotFoundError as e:
                 _send_json(self, {"error": str(e)}, 404)
