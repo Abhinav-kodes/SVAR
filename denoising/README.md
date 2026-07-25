@@ -31,7 +31,7 @@ We benchmarked the pipeline on all raw sample calls. The results prove a substan
 
 *Note: For the already clean `sample_audio.mp3`, the Wiener denoiser correctly bypassed noise reduction to avoid introducing artifacts (difference is negligible at -0.18 dB).*
 
-Detailed results are exported to [benchmark_results.csv](file:///home/abhinav/Documents/github/SVAR/data/sample_calls/benchmark_results.csv).
+Outputs (`*_denoised.wav`, `benchmark_results.csv`) are regenerable via the benchmark script below.
 
 ---
 
