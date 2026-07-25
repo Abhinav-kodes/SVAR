@@ -200,36 +200,44 @@ def api_text_emotion(handler, filename):
         api_transcribe(handler, filename)
 
     t0 = time.time()
-    classify_batch = _get_emotion_classifier()
 
-    texts = [seg.get("text", "") for seg in c["segments"]]
-    batch_results = classify_batch(texts, batch_size=16)
+    from concurrent.futures import ThreadPoolExecutor
 
-    text_results = []
-    for i, seg in enumerate(c["segments"]):
-        r = batch_results[i] if i < len(batch_results) else {"emotion": "neutral", "sentiment": "neutral", "confidence": 0.0}
-        text_results.append({
-            "emotion": r["emotion"],
-            "confidence": r["confidence"],
-            "sentiment": r["sentiment"],
-        })
+    def _run_text_emotion():
+        classify_batch = _get_emotion_classifier()
+        texts = [seg.get("text", "") for seg in c["segments"]]
+        batch_results = classify_batch(texts, batch_size=16)
+        results = []
+        for i, seg in enumerate(c["segments"]):
+            r = batch_results[i] if i < len(batch_results) else {"emotion": "neutral", "sentiment": "neutral", "confidence": 0.0}
+            results.append({
+                "emotion": r["emotion"],
+                "confidence": r["confidence"],
+                "sentiment": r["sentiment"],
+            })
+        return results
 
-    log(f"  Text emotion done ({time.time()-t0:.1f}s)")
+    def _run_acoustic_emotion():
+        analyze = _get_acoustic()
+        clean_audio = c.get("clean_audio")
+        sr = c.get("sr", 16000)
+        if clean_audio is not None:
+            analyze(clean_audio, sr, c["segments"])
+        else:
+            for seg in c["segments"]:
+                seg["acoustic_emotion"] = {
+                    "emotion": "neutral", "confidence": 0.0,
+                    "indeterminate": True, "all_scores": {},
+                    "prosodic_features": {}, "deltas": {},
+                }
 
-    t1 = time.time()
-    analyze = _get_acoustic()
-    clean_audio = c.get("clean_audio")
-    sr = c.get("sr", 16000)
-    if clean_audio is not None:
-        analyze(clean_audio, sr, c["segments"])
-        log(f"  Acoustic emotion done ({time.time()-t1:.1f}s)")
-    else:
-        for seg in c["segments"]:
-            seg["acoustic_emotion"] = {
-                "emotion": "neutral", "confidence": 0.0,
-                "indeterminate": True, "all_scores": {},
-                "prosodic_features": {}, "deltas": {},
-            }
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        text_future = pool.submit(_run_text_emotion)
+        acoustic_future = pool.submit(_run_acoustic_emotion)
+        text_results = text_future.result()
+        acoustic_future.result()
+
+    log(f"  Text + acoustic emotion parallel ({time.time()-t0:.1f}s)")
 
     t2 = time.time()
     from sentiment.fusion_layer import fuse_segments

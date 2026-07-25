@@ -1,6 +1,7 @@
 import os
 import numpy as np
 from typing import List, Dict, Any, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -10,12 +11,13 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(
 CHUNK_SECONDS = 50
 PROJECT_ID = "sunohq"
 REGION = "us"
+MAX_STT_WORKERS = 5
 
 
 class SpeechToTextTranscriber:
     """
     Google Cloud Speech-to-Text V2 with Chirp 3 model.
-    Chunks long audio into ≤50s segments for Recognize method.
+    Chunks long audio into ≤50s segments and sends them in PARALLEL.
     Diarization handled by local pyannote.
     """
 
@@ -32,6 +34,36 @@ class SpeechToTextTranscriber:
                 )
             )
         return self._client
+
+    def _transcribe_chunk(
+        self,
+        chunk_bytes: bytes,
+        chunk_offset_s: float,
+        config,
+        recognizer_path: str,
+    ) -> List[Dict[str, Any]]:
+        """Transcribe a single audio chunk. Thread-safe — called in parallel."""
+        from google.cloud.speech_v2.types import cloud_speech
+
+        client = self._get_client()
+        request = cloud_speech.RecognizeRequest(
+            recognizer=recognizer_path,
+            config=config,
+            content=chunk_bytes,
+        )
+        result = client.recognize(request=request)
+
+        words = []
+        for r in result.results:
+            alt = r.alternatives[0]
+            for w in alt.words:
+                words.append({
+                    "start": round(w.start_offset.total_seconds() + chunk_offset_s, 3),
+                    "end": round(w.end_offset.total_seconds() + chunk_offset_s, 3),
+                    "text": w.word,
+                    "probability": round(w.confidence or 0.8, 3),
+                })
+        return words
 
     def _transcribe_api(
         self,
@@ -67,35 +99,34 @@ class SpeechToTextTranscriber:
             ),
         )
 
-        client = self._get_client()
         chunk_samples = CHUNK_SECONDS * sr
+        chunks = []
+        for i in range(0, len(audio_int16), chunk_samples):
+            chunk = audio_int16[i : i + chunk_samples]
+            if len(chunk) < sr:
+                break
+            chunks.append((chunk.tobytes(), i / sr))
+
+        if not chunks:
+            return None
+
         all_words = []
-
         try:
-            for i in range(0, len(audio_int16), chunk_samples):
-                chunk = audio_int16[i : i + chunk_samples]
-                if len(chunk) < sr:
-                    break
-                offset = i / sr
-
-                request = cloud_speech.RecognizeRequest(
-                    recognizer=recognizer_path,
-                    config=config,
-                    content=chunk.tobytes(),
-                )
-                result = client.recognize(request=request)
-
-                for r in result.results:
-                    alt = r.alternatives[0]
-                    for w in alt.words:
-                        start_s = w.start_offset.total_seconds() + offset
-                        end_s = w.end_offset.total_seconds() + offset
-                        all_words.append({
-                            "start": round(start_s, 3),
-                            "end": round(end_s, 3),
-                            "text": w.word,
-                            "probability": round(w.confidence or 0.8, 3),
-                        })
+            num_workers = min(len(chunks), MAX_STT_WORKERS)
+            with ThreadPoolExecutor(max_workers=num_workers) as pool:
+                futures = {
+                    pool.submit(
+                        self._transcribe_chunk, chunk_bytes, offset, config, recognizer_path
+                    ): idx
+                    for idx, (chunk_bytes, offset) in enumerate(chunks)
+                }
+                results = [None] * len(chunks)
+                for future in as_completed(futures):
+                    idx = futures[future]
+                    results[idx] = future.result()
+                for chunk_words in results:
+                    if chunk_words:
+                        all_words.extend(chunk_words)
         except Exception as e:
             print(f"Google Cloud STT Chirp 3 error: {e}")
             return None
