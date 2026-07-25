@@ -224,21 +224,24 @@ def analyze_transcript(transcript: str) -> Dict[str, Any]:
     }
 
 
-def analyze_call(segments: List[Dict[str, Any]]) -> Dict[str, Any]:
+def analyze_call(segments: List[Dict[str, Any]], use_llm: bool = True) -> Dict[str, Any]:
     """
     Analyze a full call's segments for compliance.
 
+    Flow:
+    1. Fast keyword filter on all segments (0ms)
+    2. LLM verification on segments with keyword hits (context-aware, ~200ms)
+    3. LLM overrides keyword results (LLM understands context)
+    4. Falls back to keyword-only if LLM unavailable
+
     Args:
         segments: List of dicts with 'text', 'speaker', 'start', 'end' keys.
+        use_llm: Whether to use Gemini Flash for context-aware checking.
 
     Returns:
         Dict with per-segment results, total violations, overall compliant status.
     """
-    results = []
-    total_violations = 0
-    agent_violations = 0
-    customer_violations = 0
-
+    keyword_results = []
     for seg in segments:
         text = seg.get("text", "")
         speaker = seg.get("speaker", "unknown")
@@ -246,11 +249,43 @@ def analyze_call(segments: List[Dict[str, Any]]) -> Dict[str, Any]:
         analysis["speaker"] = speaker
         analysis["start"] = seg.get("start", seg.get("start_time_s", 0))
         analysis["end"] = seg.get("end", seg.get("end_time_s", 0))
-        results.append(analysis)
+        keyword_results.append(analysis)
 
-        vcount = analysis["violation_count"]
+    if not use_llm:
+        return _aggregate(keyword_results)
+
+    try:
+        from sentiment.compliance_llm import check_compliance_llm
+        llm_results = check_compliance_llm(segments)
+    except Exception as e:
+        print(f"[compliance] LLM unavailable, falling back to keywords: {e}")
+        llm_results = None
+
+    if llm_results is None or len(llm_results) != len(segments):
+        return _aggregate(keyword_results)
+
+    merged = []
+    for i, (kw, llm) in enumerate(zip(keyword_results, llm_results)):
+        if llm.get("violation_count", 0) > 0:
+            merged.append(llm)
+        elif kw.get("violation_count", 0) > 0 and llm.get("violation_count", 0) == 0:
+            llm["false_positive_suppressed"] = kw.get("flags", [])
+            merged.append(llm)
+        else:
+            merged.append(kw)
+
+    return _aggregate(merged)
+
+
+def _aggregate(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    total_violations = 0
+    agent_violations = 0
+    customer_violations = 0
+
+    for r in results:
+        vcount = r.get("violation_count", 0)
         total_violations += vcount
-        if "agent" in speaker.lower():
+        if "agent" in r.get("speaker", "").lower():
             agent_violations += vcount
         else:
             customer_violations += vcount
