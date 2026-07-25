@@ -84,7 +84,7 @@ pip install pyannote.audio speechbrain librosa soundfile numpy scikit-learn jobl
 
 ### 2. Credentials
 
-Place service account key at `credentials/gcloud-stt.json` (project `sunohq`, requires `roles/speech.admin`).
+Place service account key at `credentials/gcloud-stt.json` (project `sample-project`, requires `roles/speech.admin`).
 
 Place Gemini API keys at `credentials/gemini-api-keys.json`:
 ```json
