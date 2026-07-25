@@ -61,6 +61,17 @@ def fuse_segment(
         acoustic_conf *= 0.5
 
     if text_conf > TEXT_CONF_THRESHOLD and text_conf >= acoustic_conf:
+        if text_emo == "neutral" and acoustic_emo != "neutral" and acoustic_conf > 0.10:
+            w_a = max(min(acoustic_conf * 2.5, 0.7), 0.5)
+            w_t = 1.0 - w_a
+            return {
+                "emotion": acoustic_emo,
+                "sentiment": EMOTION_TO_SENTIMENT.get(acoustic_emo, "neutral"),
+                "confidence": round(w_t * text_conf + w_a * acoustic_conf, 4),
+                "source": "fused",
+                "text_weight": round(w_t, 4),
+                "acoustic_weight": round(w_a, 4),
+            }
         return {
             "emotion": text_emo,
             "sentiment": EMOTION_TO_SENTIMENT.get(text_emo, "neutral"),
@@ -97,9 +108,9 @@ def fuse_segment(
 
     blended_score = w_text * text_score + w_acoustic * acoustic_score
 
-    if blended_score > 0.3:
+    if blended_score > 0.10:
         fused_sentiment = "positive"
-    elif blended_score < -0.3:
+    elif blended_score < -0.10:
         fused_sentiment = "negative"
     else:
         fused_sentiment = "neutral"
@@ -107,11 +118,17 @@ def fuse_segment(
     fused_confidence = w_text * text_conf + w_acoustic * acoustic_conf
 
     if w_text > w_acoustic:
-        fused_emotion = text_emo
+        if text_emo == "neutral" and acoustic_emo != "neutral" and w_acoustic > 0.2:
+            fused_emotion = acoustic_emo
+        else:
+            fused_emotion = text_emo
     elif w_acoustic > w_text:
-        fused_emotion = acoustic_emo
+        if acoustic_emo == "neutral" and text_emo != "neutral" and w_text > 0.3:
+            fused_emotion = text_emo
+        else:
+            fused_emotion = acoustic_emo
     else:
-        fused_emotion = text_emo
+        fused_emotion = text_emo if text_emo != "neutral" else acoustic_emo
 
     return {
         "emotion": fused_emotion,
