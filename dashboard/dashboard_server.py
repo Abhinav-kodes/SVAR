@@ -217,21 +217,40 @@ def stage_stt(filename):
     transcript = stt.transcribe_diarized_segments(c["segments"], c["clean_audio"], c["sr"], language="hi")
     c["segments"] = transcript
     c["transcribed"] = True
-    engine = _get_role_engine()
-    resolution = engine.resolve(c["segments"])
-    engine.apply_mapping(c["segments"], resolution)
-    c["role_resolution"] = {
-        "mapping": resolution.role_mapping,
-        "method": resolution.method,
-        "applied": resolution.applied,
-    }
-    if resolution.result:
-        c["role_resolution"]["confidence"] = resolution.result.confidence
-        c["role_resolution"]["status"] = resolution.result.status
-        c["role_resolution"]["turns_used"] = resolution.result.turns_used
-    elif resolution.method == "heuristic" and resolution.applied:
-        c["role_resolution"]["confidence"] = 1.0
-        c["role_resolution"]["status"] = "resolved"
+
+    from sentiment.role_resolver_llm import GeminiRoleResolver
+    gemini = GeminiRoleResolver()
+    gemini_mapping = gemini.resolve(c["segments"])
+
+    if gemini_mapping:
+        for seg in c["segments"]:
+            spk = seg.get("speaker", "")
+            if spk in gemini_mapping:
+                seg["speaker"] = gemini_mapping[spk]
+        c["role_resolution"] = {
+            "mapping": gemini_mapping,
+            "method": "gemini",
+            "applied": True,
+            "confidence": 0.9,
+            "status": "resolved",
+        }
+        log("  [role] Gemini resolved roles: " + str(gemini_mapping))
+    else:
+        engine = _get_role_engine()
+        resolution = engine.resolve(c["segments"])
+        engine.apply_mapping(c["segments"], resolution)
+        c["role_resolution"] = {
+            "mapping": resolution.role_mapping,
+            "method": resolution.method,
+            "applied": resolution.applied,
+        }
+        if resolution.result:
+            c["role_resolution"]["confidence"] = resolution.result.confidence
+            c["role_resolution"]["status"] = resolution.result.status
+            c["role_resolution"]["turns_used"] = resolution.result.turns_used
+        elif resolution.method in ("heuristic", "fallback") and resolution.applied:
+            c["role_resolution"]["confidence"] = 1.0
+            c["role_resolution"]["status"] = "resolved"
 
 
 def stage_acoustic(filename):
