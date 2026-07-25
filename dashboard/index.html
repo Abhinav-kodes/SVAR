@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SVAR — Call Analytics Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --bg-card: rgba(18, 24, 38, 0.75);
+      --border: rgba(255,255,255,0.08);
+      --border-active: rgba(6,182,212,0.5);
+      --text: #f1f5f9;
+      --text-dim: #94a3b8;
+      --cyan: #06b6d4;
+      --amber: #f59e0b;
+      --purple: #8b5cf6;
+      --green: #10b981;
+      --red: #ef4444;
+      --pink: #ec4899;
+      --radius: 14px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      background:var(--bg-dark);
+      background-image:
+        radial-gradient(at 0% 0%,rgba(6,182,212,0.12) 0px,transparent 50%),
+        radial-gradient(at 100% 100%,rgba(139,92,246,0.12) 0px,transparent 50%);
+      color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;
+      display:flex;flex-direction:column;
+    }
+
+    /* ── Header ── */
+    header{
+      padding:0.9rem 1.5rem;border-bottom:1px solid var(--border);
+      background:rgba(11,15,25,0.85);backdrop-filter:blur(12px);
+      display:flex;justify-content:space-between;align-items:center;
+      position:sticky;top:0;z-index:100;
+    }
+    .brand{display:flex;align-items:center;gap:0.65rem}
+    .brand-logo{
+      width:36px;height:36px;border-radius:9px;
+      background:linear-gradient(135deg,var(--cyan),var(--purple));
+      display:flex;align-items:center;justify-content:center;
+      font-family:'Outfit',sans-serif;font-weight:800;font-size:1.05rem;color:#fff;
+      box-shadow:0 4px 12px rgba(6,182,212,0.35);
+    }
+    .brand-title{font-family:'Outfit',sans-serif;font-size:1.15rem;font-weight:700;letter-spacing:-0.4px}
+    .brand-sub{font-size:0.72rem;color:var(--text-dim)}
+    .header-right{display:flex;align-items:center;gap:0.75rem}
+    .badge{
+      padding:0.3rem 0.65rem;border-radius:999px;font-size:0.7rem;font-weight:600;
+      text-transform:uppercase;letter-spacing:0.4px;
+    }
+    .badge-green{background:rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3)}
+    .badge-amber{background:rgba(245,158,11,0.15);color:var(--amber);border:1px solid rgba(245,158,11,0.3)}
+    .badge-red{background:rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.3)}
+
+    /* ── Layout ── */
+    .app{display:flex;flex:1;overflow:hidden}
+    .sidebar{
+      width:280px;min-width:280px;border-right:1px solid var(--border);
+      background:rgba(11,15,25,0.6);display:flex;flex-direction:column;
+      overflow-y:auto;
+    }
+    .sidebar-section{padding:1rem;border-bottom:1px solid var(--border)}
+    .sidebar-title{font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:0.6rem;font-weight:600}
+    .file-list{display:flex;flex-direction:column;gap:0.4rem}
+    .file-item{
+      padding:0.65rem 0.75rem;border-radius:8px;background:rgba(255,255,255,0.02);
+      border:1px solid transparent;cursor:pointer;transition:all 0.15s;
+      display:flex;align-items:center;justify-content:space-between;font-size:0.85rem;
+    }
+    .file-item:hover{background:rgba(255,255,255,0.06);border-color:var(--border)}
+    .file-item.active{background:rgba(6,182,212,0.1);border-color:var(--cyan);box-shadow:0 0 12px rgba(6,182,212,0.2)}
+    .file-name{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .file-ext{font-size:0.65rem;color:var(--text-dim);background:rgba(255,255,255,0.07);padding:0.1rem 0.35rem;border-radius:4px}
+
+    /* Tab nav */
+    .tab-nav{display:flex;flex-direction:column;gap:2px;padding:0.5rem 0.75rem}
+    .tab-btn{
+      display:flex;align-items:center;gap:0.55rem;padding:0.55rem 0.75rem;
+      border-radius:8px;border:none;background:transparent;color:var(--text-dim);
+      font-family:'Inter',sans-serif;font-size:0.82rem;font-weight:500;
+      cursor:pointer;transition:all 0.15s;text-align:left;
+    }
+    .tab-btn:hover{background:rgba(255,255,255,0.05);color:var(--text)}
+    .tab-btn.active{background:rgba(6,182,212,0.1);color:var(--cyan);font-weight:600}
+    .tab-icon{width:18px;text-align:center;font-size:0.95rem}
+    .tab-badge{
+      margin-left:auto;font-size:0.65rem;padding:0.1rem 0.35rem;
+      border-radius:4px;background:rgba(255,255,255,0.06);color:var(--text-dim);
+    }
+
+    /* Main */
+    .main{flex:1;overflow-y:auto;padding:1.5rem;display:flex;flex-direction:column;gap:1.25rem}
+    .tab-content{display:none}
+    .tab-content.active{display:flex;flex-direction:column;gap:1.25rem}
+
+    /* Cards */
+    .card{
+      background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
+      padding:1.25rem;backdrop-filter:blur(12px);box-shadow:0 8px 24px rgba(0,0,0,0.25);
+    }
+    .card-title{
+      font-family:'Outfit',sans-serif;font-size:1rem;font-weight:600;
+      margin-bottom:0.85rem;display:flex;align-items:center;gap:0.45rem;
+    }
+    .card-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.85rem}
+
+    /* Stat pills */
+    .stat{padding:0.85rem;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid var(--border)}
+    .stat-label{font-size:0.68rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:0.2rem}
+    .stat-value{font-family:'Outfit',sans-serif;font-size:1.35rem;font-weight:700}
+    .stat-value.cyan{color:var(--cyan)}.stat-value.amber{color:var(--amber)}
+    .stat-value.green{color:var(--green)}.stat-value.red{color:var(--red)}
+    .stat-value.purple{color:var(--purple)}.stat-value.pink{color:var(--pink)}
+
+    /* Audio */
+    audio{width:100%;border-radius:8px;outline:none}
+    .audio-pair{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    .audio-label{font-size:0.72rem;color:var(--text-dim);margin-bottom:0.3rem;font-weight:500}
+
+    /* Timeline */
+    .timeline-bar{
+      height:32px;width:100%;background:rgba(255,255,255,0.04);border-radius:6px;
+      position:relative;overflow:hidden;border:1px solid var(--border);cursor:pointer;
+    }
+    .tl-seg{position:absolute;top:0;bottom:0;border-radius:3px;transition:opacity 0.15s}
+    .tl-seg.agent{background:var(--cyan);box-shadow:0 0 8px rgba(6,182,212,0.25)}
+    .tl-seg.customer{background:var(--amber);box-shadow:0 0 8px rgba(245,158,11,0.25)}
+    .tl-seg.active-play{border:2px solid #fff;z-index:5;transform:scaleY(1.08)}
+    .tl-playhead{position:absolute;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 6px #fff;z-index:10;pointer-events:none}
+    .legend{display:flex;gap:1.2rem;font-size:0.78rem;margin-top:0.4rem;color:var(--text-dim)}
+    .legend-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:0.3rem}
+
+    /* Table */
+    .tbl-wrap{max-height:360px;overflow:auto;border-radius:8px;border:1px solid var(--border)}
+    table{width:100%;border-collapse:collapse;font-size:0.82rem;text-align:left}
+    th{background:rgba(255,255,255,0.04);padding:0.65rem 0.85rem;font-weight:600;color:var(--text-dim);position:sticky;top:0}
+    td{padding:0.6rem 0.85rem;border-bottom:1px solid rgba(255,255,255,0.03)}
+    tr{cursor:pointer;transition:background 0.12s}
+    tr:hover{background:rgba(255,255,255,0.03)}
+    tr.active-row{background:rgba(6,182,212,0.1)!important}
+    .spk-tag{display:inline-flex;align-items:center;padding:0.2rem 0.5rem;border-radius:5px;font-weight:600;font-size:0.7rem;text-transform:uppercase}
+    .spk-tag.agent{background:rgba(6,182,212,0.12);color:var(--cyan);border:1px solid rgba(6,182,212,0.25)}
+    .spk-tag.customer{background:rgba(245,158,11,0.12);color:var(--amber);border:1px solid rgba(245,158,11,0.25)}
+
+    /* Emotion chips */
+    .emo-chip{display:inline-flex;align-items:center;gap:0.25rem;padding:0.15rem 0.5rem;border-radius:6px;font-size:0.72rem;font-weight:500}
+    .emo-chip.happiness{background:rgba(16,185,129,0.12);color:#34d399}
+    .emo-chip.anger{background:rgba(239,68,68,0.12);color:#f87171}
+    .emo-chip.sadness{background:rgba(96,165,250,0.12);color:#60a5fa}
+    .emo-chip.fear{background:rgba(245,158,11,0.12);color:#fbbf24}
+    .emo-chip.disgust{background:rgba(168,85,247,0.12);color:#a855f7}
+    .emo-chip.neutral{background:rgba(148,163,184,0.12);color:#94a3b8}
+
+    /* Grade ring */
+    .grade-ring{
+      width:120px;height:120px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      flex-direction:column;margin:0 auto 0.75rem;position:relative;
+    }
+    .grade-ring svg{position:absolute;inset:0}
+    .grade-letter{font-family:'Outfit',sans-serif;font-size:2.5rem;font-weight:800;line-height:1}
+    .grade-score{font-size:0.8rem;color:var(--text-dim)}
+
+    /* Score bar */
+    .score-bar-row{display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem}
+    .score-bar-label{width:130px;font-size:0.78rem;color:var(--text-dim);text-align:right}
+    .score-bar-track{flex:1;height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden}
+    .score-bar-fill{height:100%;border-radius:4px;transition:width 0.4s}
+    .score-bar-val{width:40px;font-size:0.78rem;font-weight:600}
+
+    /* Compliance */
+    .viol-row{display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:0.82rem}
+    .viol-type{font-size:0.68rem;font-weight:600;padding:0.15rem 0.4rem;border-radius:4px}
+    .viol-type.rbi{background:rgba(239,68,68,0.12);color:#f87171}
+    .viol-type.irdai{background:rgba(245,158,11,0.12);color:#fbbf24}
+    .viol-type.abusive{background:rgba(236,72,153,0.12);color:#f472b6}
+
+    /* CRM note */
+    .crm-box{background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:10px;padding:1rem;font-size:0.85rem;line-height:1.6}
+    .crm-keypoints{list-style:none;padding:0}
+    .crm-keypoints li{padding:0.3rem 0;padding-left:1rem;position:relative}
+    .crm-keypoints li::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:5px;height:5px;border-radius:50%;background:var(--cyan)}
+
+    /* Loading */
+    .loading{
+      display:none;position:fixed;inset:0;background:rgba(11,15,25,0.8);
+      backdrop-filter:blur(8px);z-index:200;align-items:center;justify-content:center;
+      flex-direction:column;gap:0.75rem;
+    }
+    .spinner{width:44px;height:44px;border:3px solid rgba(6,182,212,0.2);border-top-color:var(--cyan);border-radius:50%;animation:spin 0.8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .load-text{font-weight:600;font-size:0.95rem}.load-sub{font-size:0.78rem;color:var(--text-dim)}
+
+    /* Empty state */
+    .empty{text-align:center;padding:3rem 1rem;color:var(--text-dim);font-size:0.9rem}
+
+    /* Responsive */
+    @media(max-width:900px){
+      .sidebar{width:220px;min-width:220px}
+      .audio-pair{grid-template-columns:1fr}
+    }
+    @media(max-width:700px){
+      .app{flex-direction:column}
+      .sidebar{width:100%;min-width:0;flex-direction:row;overflow-x:auto;border-right:none;border-bottom:1px solid var(--border)}
+      .sidebar-section{min-width:200px}
+      .tab-nav{flex-direction:row;overflow-x:auto}
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-logo">S</div>
+    <div>
+      <div class="brand-title">SVAR Call Analytics</div>
+      <div class="brand-sub">End-to-end Hindi call analysis</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span id="modelBadge" class="badge badge-amber">Model: Not Loaded</span>
+    <span id="processingTime" class="badge badge-green" style="display:none"></span>
+  </div>
+</header>
+
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">Sample Calls</div>
+      <div id="fileList" class="file-list">
+        <div style="color:var(--text-dim);font-size:0.8rem">Loading...</div>
+      </div>
+    </div>
+    <div class="sidebar-section" style="flex:1;border-bottom:none">
+      <div class="sidebar-title">Pipeline Stages</div>
+      <div class="tab-nav" id="tabNav"></div>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="main" id="mainPanel">
+    <div class="empty" id="emptyState">
+      <div style="font-size:2rem;margin-bottom:0.5rem">📞</div>
+      Select a call recording to run the full pipeline
+    </div>
+    <!-- Tab contents injected by JS -->
+  </div>
+</div>
+
+<audio id="audioPlayer" controls style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:150;padding:0.5rem;background:var(--bg-dark);border-top:1px solid var(--border)"></audio>
+<div id="loadingOverlay" class="loading">
+  <div class="spinner"></div>
+  <div class="load-text">Running Full Pipeline...</div>
+  <div class="load-sub" id="loadStatus">Denoising → Diarization → STT → Emotion → Compliance → QA</div>
+</div>
+
+<script>
+const TABS = [
+  {id:'summary',     icon:'📊', label:'Summary'},
+  {id:'denoising',   icon:'🔇', label:'Denoising'},
+  {id:'diarization', icon:'👥', label:'Diarization'},
+  {id:'transcript',  icon:'📝', label:'Transcript'},
+  {id:'textemo',     icon:'💬', label:'Text Emotion'},
+  {id:'acousticemo', icon:'🎵', label:'Acoustic Emotion'},
+  {id:'fusion',      icon:'🔀', label:'Fusion'},
+  {id:'compliance',  icon:'⚖️', label:'Compliance'},
+  {id:'qascore',     icon:'🏆', label:'QA Score'},
+  {id:'crm',         icon:'📋', label:'CRM Note'},
+];
+const TAB_API = {
+  denoising:'/api/denoise', diarization:'/api/diarize', transcript:'/api/transcribe',
+  textemo:'/api/text-emotion', fusion:'/api/text-emotion', compliance:'/api/compliance',
+  qascore:'/api/qa-score', crm:'/api/crm-note',
+};
+let activeTab = 'summary';
+let activeFileName = '';
+let data = {};
+const audioPlayer = document.getElementById('audioPlayer');
+
+function initTabs(){
+  const nav = document.getElementById('tabNav');
+  nav.innerHTML = '';
+  TABS.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (t.id === activeTab ? ' active' : '');
+    btn.dataset.tab = t.id;
+    btn.innerHTML = `<span class="tab-icon">${t.icon}</span>${t.label}<span class="tab-badge" id="badge-${t.id}"></span>`;
+    btn.onclick = () => switchTab(t.id);
+    nav.appendChild(btn);
+  });
+  renderTabContents();
+  switchTab(activeTab);
+}
+
+function switchTab(id){
+  activeTab = id;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab===id));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.dataset.tab===id));
+  if(activeFileName && TAB_API[id]) loadTab(id);
+}
+
+function renderTabContents(){
+  const main = document.getElementById('mainPanel');
+  TABS.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'tab-content';
+    div.dataset.tab = t.id;
+    div.id = 'tab-' + t.id;
+    main.appendChild(div);
+  });
+}
+
+async function loadTab(tabId){
+  const api = TAB_API[tabId];
+  if(!api || !activeFileName) return;
+  const el = document.getElementById('tab-'+tabId);
+  el.innerHTML = '<div class="empty"><div class="spinner" style="width:28px;height:28px;margin:0 auto 0.5rem;border-width:2px"></div>Loading '+tabId+'...</div>';
+  try{
+    const res = await fetch(api, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:activeFileName})});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const d = await res.json();
+    Object.assign(data, d);
+    if(d.segments) data.segments = d.segments;
+    renderActiveTab();
+  }catch(e){
+    el.innerHTML = '<div class="empty" style="color:var(--red)">Error: '+e.message+'</div>';
+  }
+}
+
+function renderActiveTab(){
+  const r = {
+    summary: renderSummary, denoising: renderDenoising, diarization: renderDiarization,
+    transcript: renderTranscript, textemo: renderTextEmotion, acousticemo: renderAcousticEmotion,
+    fusion: renderFusion, compliance: renderCompliance, qascore: renderQAScore, crm: renderCRM,
+  };
+  if(r[activeTab]) r[activeTab](data);
+}
+
+/* ── Render functions ── */
+
+function renderSummary(d){
+  const el = document.getElementById('tab-summary');
+  if(!d){el.innerHTML='<div class="empty">Run a call to see summary</div>';return}
+  const talk = d.talk_ratio || {};
+  const qa = d.qa || {};
+  const comp = d.compliance || {};
+  const denoise = d.denoise_metrics || {};
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">📊 Call Overview</div>
+      <div class="card-row">
+        <div class="stat"><div class="stat-label">Duration</div><div class="stat-value">${d.duration_s || '--'}s</div></div>
+        <div class="stat"><div class="stat-label">Processing</div><div class="stat-value purple">${d.processing_time_s || '--'}s</div></div>
+        <div class="stat"><div class="stat-label">Segments</div><div class="stat-value cyan">${d.segments?.length || 0}</div></div>
+        <div class="stat"><div class="stat-label">SNR Δ</div><div class="stat-value ${denoise.snr_after_db > denoise.snr_before_db ? 'green' : 'amber'}">${denoise.snr_before_db?.toFixed(1) || '--'} → ${denoise.snr_after_db?.toFixed(1) || '--'} dB</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🏆 QA Grade</div>
+      <div style="display:flex;gap:2rem;align-items:center;flex-wrap:wrap">
+        <div class="grade-ring" id="gradeRing">
+          <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="8"/><circle id="gradeArc" cx="60" cy="60" r="54" fill="none" stroke="var(--cyan)" stroke-width="8" stroke-linecap="round" stroke-dasharray="339.29" stroke-dashoffset="339.29" transform="rotate(-90 60 60)"/></svg>
+          <div class="grade-letter" id="gradeLetter" style="color:var(--cyan)">--</div>
+          <div class="grade-score" id="gradeScore">-- pts</div>
+        </div>
+        <div style="flex:1;min-width:200px">
+          ${Object.entries(qa.components || {}).map(([k,v]) => {
+            const colors = {customer_sentiment:'var(--cyan)',compliance:'var(--green)',agent_stability:'var(--amber)',intent_resolution:'var(--purple)',talk_ratio:'var(--pink)'};
+            const labels = {customer_sentiment:'Sentiment',compliance:'Compliance',agent_stability:'Agent Stability',intent_resolution:'Intent',talk_ratio:'Talk Ratio'};
+            return `<div class="score-bar-row"><span class="score-bar-label">${labels[k]||k}</span><div class="score-bar-track"><div class="score-bar-fill" style="width:${v}%;background:${colors[k]||'var(--cyan)'}"></div></div><span class="score-bar-val" style="color:${colors[k]||'var(--text)'}">${v}</span></div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">👥 Speaker Split</div>
+      <div class="card-row">
+        <div class="stat"><div class="stat-label" style="color:var(--cyan)">Agent</div><div class="stat-value cyan">${talk.agent_duration_s || 0}s <span style="font-size:0.8rem;color:var(--text-dim)">(${((talk.agent_ratio||0)*100).toFixed(1)}%)</span></div></div>
+        <div class="stat"><div class="stat-label" style="color:var(--amber)">Customer</div><div class="stat-value amber">${talk.customer_duration_s || 0}s <span style="font-size:0.8rem;color:var(--text-dim)">(${((talk.customer_ratio||0)*100).toFixed(1)}%)</span></div></div>
+        <div class="stat"><div class="stat-label">Total Speech</div><div class="stat-value">${talk.total_speech_s || 0}s</div></div>
+        <div class="stat"><div class="stat-label">Compliance</div><div class="stat-value ${comp.compliant ? 'green' : 'red'}">${comp.compliant ? '✓ Compliant' : '✗ ' + (comp.total_violations||0) + ' violations'}</div></div>
+      </div>
+    </div>
+  `;
+
+  // animate grade ring
+  if(qa.qa_score !== undefined){
+    const pct = qa.qa_score / 100;
+    const offset = 339.29 * (1 - pct);
+    document.getElementById('gradeArc').style.strokeDashoffset = offset;
+    const colors = {A:'var(--green)',B:'var(--cyan)',C:'var(--amber)',D:'var(--red)'};
+    const gArc = document.getElementById('gradeArc');
+    const gLet = document.getElementById('gradeLetter');
+    gArc.style.stroke = colors[qa.grade] || 'var(--cyan)';
+    gLet.style.color = colors[qa.grade] || 'var(--cyan)';
+    gLet.textContent = qa.grade;
+    document.getElementById('gradeScore').textContent = qa.qa_score + ' pts';
+  }
+}
+
+function renderDenoising(d){
+  const el = document.getElementById('tab-denoising');
+  const m = d?.denoise_metrics;
+  if(!m){el.innerHTML='<div class="empty">No denoising data</div>';return}
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">🔇 Audio Denoising</div>
+      <div class="audio-pair">
+        <div><div class="audio-label">Original (Raw)</div><audio id="audioRaw" controls></audio></div>
+        <div><div class="audio-label">Denoised</div><audio id="audioClean" controls></audio></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Signal Quality</div>
+      <div class="card-row">
+        <div class="stat"><div class="stat-label">SNR Before</div><div class="stat-value amber">${m.snr_before_db?.toFixed(1) || '--'} dB</div></div>
+        <div class="stat"><div class="stat-label">SNR After</div><div class="stat-value green">${m.snr_after_db?.toFixed(1) || '--'} dB</div></div>
+        <div class="stat"><div class="stat-label">Δ SNR</div><div class="stat-value cyan">+${(m.snr_after_db - m.snr_before_db)?.toFixed(1) || '--'} dB</div></div>
+        <div class="stat"><div class="stat-label">Quality Grade</div><div class="stat-value ${m.audio_quality_grade === 'good' ? 'green' : m.audio_quality_grade === 'fair' ? 'amber' : 'red'}">${m.audio_quality_grade || '--'}</div></div>
+      </div>
+    </div>
+  `;
+  if(activeFileName){
+    const raw = document.getElementById('audioRaw');
+    const clean = document.getElementById('audioClean');
+    if(raw) raw.src = '/audio/' + activeFileName;
+    if(clean) clean.src = '/audio/' + activeFileName;
+  }
+}
+
+function renderDiarization(d){
+  const el = document.getElementById('tab-diarization');
+  if(!d?.segments){el.innerHTML='<div class="empty">No diarization data</div>';return}
+  const talk = d.talk_ratio || {};
+  const dur = d.duration_s || 1;
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">👥 Speaker Timeline</div>
+      <div class="timeline-bar" id="timelineBar"><div class="tl-playhead" id="playhead" style="left:0%"></div></div>
+      <div class="legend">
+        <span><span class="legend-dot" style="background:var(--cyan)"></span>Agent (${talk.agent_duration_s||0}s)</span>
+        <span><span class="legend-dot" style="background:var(--amber)"></span>Customer (${talk.customer_duration_s||0}s)</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Segment Details</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Speaker</th><th>Start</th><th>End</th><th>Duration</th><th>Confidence</th></tr></thead>
+          <tbody id="diarTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  const tbody = document.getElementById('diarTableBody');
+  const tlBar = document.getElementById('timelineBar');
+  d.segments.forEach((s,i) => {
+    const tr = document.createElement('tr');
+    tr.id = 'diar-row-'+i;
+    tr.onclick = () => { audioPlayer.currentTime = s.start_time_s; audioPlayer.play(); };
+    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${s.speaker==='agent'?'Agent':'Customer'}</span></td><td>${s.start_time_s.toFixed(2)}s</td><td>${s.end_time_s.toFixed(2)}s</td><td>${s.duration_s.toFixed(2)}s</td><td>${(s.confidence*100).toFixed(0)}% ${s.uncertain?'⚠️':'✅'}</td>`;
+    tbody.appendChild(tr);
+
+    const seg = document.createElement('div');
+    seg.className = 'tl-seg ' + s.speaker;
+    seg.dataset.idx = i;
+    seg.style.left = (s.start_time_s/dur*100)+'%';
+    seg.style.width = Math.max(s.duration_s/dur*100, 0.3)+'%';
+    seg.onclick = e => { e.stopPropagation(); audioPlayer.currentTime = s.start_time_s; audioPlayer.play(); };
+    tlBar.appendChild(seg);
+  });
+  tlBar.onclick = e => {
+    const rect = tlBar.getBoundingClientRect();
+    audioPlayer.currentTime = ((e.clientX - rect.left)/rect.width)*dur;
+    audioPlayer.play();
+  };
+}
+
+function renderTranscript(d){
+  const el = document.getElementById('tab-transcript');
+  if(!d?.segments){el.innerHTML='<div class="empty">No transcript data</div>';return}
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">📝 Call Transcript</div>
+      <div id="transcriptBody" style="max-height:500px;overflow-y:auto"></div>
+    </div>
+  `;
+  const body = document.getElementById('transcriptBody');
+  d.segments.forEach((s,i) => {
+    if(!s.text) return;
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;gap:0.6rem;padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.03)';
+    div.innerHTML = `<span class="spk-tag ${s.speaker}" style="flex-shrink:0;margin-top:2px">${s.speaker==='agent'?'Agent':'Cust'}</span><div><div style="font-size:0.68rem;color:var(--text-dim);margin-bottom:0.15rem">${s.start_time_s?.toFixed(1)}s – ${s.end_time_s?.toFixed(1)}s</div><div style="font-size:0.88rem;line-height:1.5">${s.text}</div></div>`;
+    body.appendChild(div);
+  });
+}
+
+function renderTextEmotion(d){
+  const el = document.getElementById('tab-textemo');
+  if(!d?.segments){el.innerHTML='<div class="empty">No text emotion data</div>';return}
+  el.innerHTML = `
+    <div class="card"><div class="card-title">💬 Text Emotion (MuRIL)</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>#</th><th>Speaker</th><th>Emotion</th><th>Sentiment</th><th>Confidence</th><th>Text</th></tr></thead>
+        <tbody id="textEmoBody"></tbody>
+      </table></div>
+    </div>
+  `;
+  const body = document.getElementById('textEmoBody');
+  d.segments.forEach((s,i) => {
+    const emo = s.emotion || 'neutral';
+    const sent = s.sentiment || 'neutral';
+    const conf = s.confidence || 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${s.speaker==='agent'?'Agent':'Cust'}</span></td><td><span class="emo-chip ${emo}">${emo}</span></td><td><span class="emo-chip ${sent}">${sent}</span></td><td>${(conf*100).toFixed(0)}%</td><td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.78rem;color:var(--text-dim)">${s.text||''}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+function renderAcousticEmotion(d){
+  const el = document.getElementById('tab-acousticemo');
+  const ac = d?.acoustic_results;
+  if(!ac || !ac.length){el.innerHTML='<div class="empty">Acoustic emotion requires model — results will appear here after integration</div>';return}
+  el.innerHTML = `
+    <div class="card"><div class="card-title">🎵 Acoustic Emotion (Prosodic)</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>#</th><th>Emotion</th><th>Confidence</th><th>Indeterminate</th></tr></thead>
+        <tbody id="acEmoBody"></tbody>
+      </table></div>
+    </div>
+  `;
+  const body = document.getElementById('acEmoBody');
+  ac.forEach((r,i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="emo-chip ${r.emotion||'neutral'}">${r.emotion||'neutral'}</span></td><td>${((r.confidence||0)*100).toFixed(0)}%</td><td>${r.indeterminate?'⚠️':'✅'}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+function renderFusion(d){
+  const el = document.getElementById('tab-fusion');
+  const fused = d?.fusion;
+  if(!fused || !fused.length){el.innerHTML='<div class="empty">No fusion data</div>';return}
+  el.innerHTML = `
+    <div class="card"><div class="card-title">🔀 Fused Emotion Results</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>#</th><th>Speaker</th><th>Emotion</th><th>Sentiment</th><th>Confidence</th><th>Source</th></tr></thead>
+        <tbody id="fusionBody"></tbody>
+      </table></div>
+    </div>
+  `;
+  const body = document.getElementById('fusionBody');
+  d.segments.forEach((s,i) => {
+    const f = fused[i] || {};
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${s.speaker==='agent'?'Agent':'Cust'}</span></td><td><span class="emo-chip ${f.emotion||'neutral'}">${f.emotion||'neutral'}</span></td><td><span class="emo-chip ${f.sentiment||'neutral'}">${f.sentiment||'neutral'}</span></td><td>${((f.confidence||0)*100).toFixed(0)}%</td><td style="font-size:0.75rem;color:var(--text-dim)">${f.source||'--'}${f.text_weight?' tw:'+f.text_weight:''}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+function renderCompliance(d){
+  const el = document.getElementById('tab-compliance');
+  const c = d?.compliance;
+  if(!c){el.innerHTML='<div class="empty">No compliance data</div>';return}
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">⚖️ Compliance Summary</div>
+      <div class="card-row">
+        <div class="stat"><div class="stat-label">Status</div><div class="stat-value ${c.compliant?'green':'red'}">${c.compliant?'✓ Compliant':'✗ Non-Compliant'}</div></div>
+        <div class="stat"><div class="stat-label">Total Violations</div><div class="stat-value ${c.total_violations>0?'red':'green'}">${c.total_violations||0}</div></div>
+        <div class="stat"><div class="stat-label">Agent Violations</div><div class="stat-value amber">${c.agent_violations||0}</div></div>
+        <div class="stat"><div class="stat-label">Customer Violations</div><div class="stat-value amber">${c.customer_violations||0}</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Violation Details</div>
+      <div id="violList">${c.total_violations===0?'<div style="color:var(--green);font-size:0.85rem">No violations detected in this call.</div>':''}</div>
+    </div>
+  `;
+  const list = document.getElementById('violList');
+  (c.segment_results||[]).forEach((sr,i) => {
+    if(sr.violation_count === 0) return;
+    sr.flags.forEach(f => {
+      const parts = f.split(':');
+      const type = parts[0].toLowerCase();
+      const div = document.createElement('div');
+      div.className = 'viol-row';
+      div.innerHTML = `<span class="viol-type ${type}">${type}</span><span style="flex:1">${parts.slice(1).join(':')}</span><span style="color:var(--text-dim);font-size:0.75rem">${sr.speaker} @ ${sr.start?.toFixed?.(1)||sr.start}s</span>`;
+      list.appendChild(div);
+    });
+  });
+}
+
+function renderQAScore(d){
+  const el = document.getElementById('tab-qascore');
+  const qa = d?.qa;
+  if(!qa){el.innerHTML='<div class="empty">No QA score data</div>';return}
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">🏆 QA Score Breakdown</div>
+      <div style="display:flex;gap:2rem;align-items:flex-start;flex-wrap:wrap">
+        <div class="grade-ring">
+          <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="8"/><circle cx="60" cy="60" r="54" fill="none" stroke="var(--cyan)" stroke-width="8" stroke-linecap="round" stroke-dasharray="339.29" stroke-dashoffset="${339.29*(1-qa.qa_score/100)}" transform="rotate(-90 60 60)"/></svg>
+          <div class="grade-letter" style="color:${{A:'var(--green)',B:'var(--cyan)',C:'var(--amber)',D:'var(--red)'}[qa.grade]||'var(--cyan)'}">${qa.grade}</div>
+          <div class="grade-score">${qa.qa_score} pts</div>
+        </div>
+        <div style="flex:1;min-width:250px">
+          ${Object.entries(qa.components||{}).map(([k,v]) => {
+            const colors = {customer_sentiment:'var(--cyan)',compliance:'var(--green)',agent_stability:'var(--amber)',intent_resolution:'var(--purple)',talk_ratio:'var(--pink)'};
+            const labels = {customer_sentiment:'Customer Sentiment',compliance:'Compliance',agent_stability:'Agent Stability',intent_resolution:'Intent Resolution',talk_ratio:'Talk Ratio'};
+            const weight = qa.weights_used?.[k] || 0;
+            return `<div class="score-bar-row"><span class="score-bar-label">${labels[k]||k} <span style="color:var(--text-dim);font-size:0.68rem">×${(weight*100).toFixed(0)}%</span></span><div class="score-bar-track"><div class="score-bar-fill" style="width:${v}%;background:${colors[k]||'var(--cyan)'}"></div></div><span class="score-bar-val" style="color:${colors[k]||'var(--text)'}">${v}</span></div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCRM(d){
+  const el = document.getElementById('tab-crm');
+  const crm = d?.crm_note;
+  if(!crm){el.innerHTML='<div class="empty">No CRM note data</div>';return}
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">📋 CRM Note</div>
+      <div class="crm-box">
+        <div style="font-weight:600;margin-bottom:0.5rem;color:var(--cyan)">Summary</div>
+        <div style="margin-bottom:0.75rem">${crm.summary||'N/A'}</div>
+        <div style="font-weight:600;margin-bottom:0.4rem;color:var(--amber)">Key Points</div>
+        <ul class="crm-keypoints">${(crm.key_points||[]).map(p=>'<li>'+p+'</li>').join('')}</ul>
+        <div style="font-weight:600;margin-top:0.75rem;margin-bottom:0.4rem;color:var(--purple)">Compliance</div>
+        <div style="margin-bottom:0.5rem">${crm.compliance_summary||'N/A'}</div>
+        <div style="font-weight:600;margin-bottom:0.4rem;color:var(--green)">Recommended Action</div>
+        <div>${crm.recommended_action||'N/A'}</div>
+      </div>
+    </div>
+  `;
+}
+
+/* ── Audio playhead sync ── */
+if(audioPlayer){
+  audioPlayer.ontimeupdate = () => {
+    if(!data.segments) return;
+    const cur = audioPlayer.currentTime;
+    const dur = data.duration_s || 1;
+    const ph = document.getElementById('playhead');
+    if(ph) ph.style.left = Math.min(cur/dur*100,100)+'%';
+    data.segments.forEach((s,i) => {
+      const seg = document.querySelector(`.tl-seg[data-idx="${i}"]`);
+      if(seg) seg.classList.toggle('active-play', cur >= s.start_time_s && cur <= s.end_time_s);
+      const row = document.getElementById('diar-row-'+i);
+      if(row) row.classList.toggle('active-row', cur >= s.start_time_s && cur <= s.end_time_s);
+    });
+  };
+}
+
+/* ── File selection ── */
+async function loadSampleCalls(){
+  try{
+    const res = await fetch('/api/sample_calls');
+    const files = await res.json();
+    const list = document.getElementById('fileList');
+    list.innerHTML = '';
+    files.forEach((f,i) => {
+      const item = document.createElement('div');
+      item.className = 'file-item';
+      item.dataset.file = f;
+      item.innerHTML = `<span class="file-name">${f}</span><span class="file-ext">${f.split('.').pop().toUpperCase()}</span>`;
+      item.onclick = () => selectFile(f);
+      list.appendChild(item);
+      if(i===0) selectFile(f);
+    });
+  }catch(e){console.error(e)}
+}
+
+async function selectFile(filename){
+  activeFileName = filename;
+  data = {};
+  document.querySelectorAll('.file-item').forEach(el => el.classList.toggle('active', el.dataset.file===filename));
+  if(audioPlayer){
+    audioPlayer.src = '/audio/'+filename;
+    audioPlayer.style.display='block';
+  }
+  TABS.forEach(t => {
+    const el = document.getElementById('tab-'+t.id);
+    if(el) el.innerHTML = '';
+  });
+  document.getElementById('emptyState').style.display='none';
+  switchTab('summary');
+}
+
+initTabs();
+loadSampleCalls();
+</script>
+</body>
+</html>

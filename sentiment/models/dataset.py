@@ -22,6 +22,8 @@ SENTIMENT_LABEL2ID = {
     "positive": 2
 }
 
+SENTIMENT_ID2LABEL = {v: k for k, v in SENTIMENT_LABEL2ID.items()}
+
 
 def map_emotion_to_sentiment(emotion_label: str) -> int:
     """Maps 6 emotion categories into 3 sentiment classes (positive, neutral, negative)."""

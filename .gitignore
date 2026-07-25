@@ -14,21 +14,24 @@ __pycache__/
 # Data, Audio & Model Weights
 data/sample_calls/
 data/emotions/
-data/research_papers
+data/research_papers/
 sentiment/data/*.csv
 whisper-hindi/
 muril-base/
 sentiment/models/checkpoints/
-
-
-# Root level reports/metadata
-quality_report.json
-
-# Data files
-*.csv
-*.json
-*.npy
 *.joblib
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+
+# Training artifacts
+train_colab_full.py
+*.csv.gz
+
+# Credentials & secrets
+credentials/
 
 # IDE settings
 .vscode/
@@ -42,3 +45,6 @@ quality_report.json
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Diarization cache / temp data
+diarization/change_detector_data/

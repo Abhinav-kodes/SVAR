@@ -1,132 +1,222 @@
 import os
 import numpy as np
-import scipy.signal
 from typing import List, Dict, Any, Optional
+
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "credentials", "gcloud-stt.json",
+)
+
+CHUNK_SECONDS = 50
+PROJECT_ID = "sunohq"
+REGION = "us"
 
 
 class SpeechToTextTranscriber:
     """
-    Speech-to-Text (STT) transcriber using Whisper automatic speech recognition models.
-    Supports local Vaani Hindi Whisper model ('whisper-hindi') and online HuggingFace models.
+    Google Cloud Speech-to-Text V2 with Chirp 3 model.
+    Chunks long audio into ≤50s segments for Recognize method.
+    Diarization handled by local pyannote.
     """
-    def __init__(self, model_name: Optional[str] = None, device: Optional[str] = None):
-        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        local_model_path = os.path.join(repo_root, "whisper-hindi")
 
-        if model_name is not None:
-            self.model_name = model_name
-        elif os.path.exists(local_model_path):
-            self.model_name = local_model_path
-        else:
-            self.model_name = "ARTPARK-IISc/whisper-large-v3-vaani-hindi"
+    def __init__(self):
+        self._client = None
 
-        self.pipeline = None
-        self._initialized = False
-
-    def _initialize_pipeline(self):
-        """Lazy initialization of HuggingFace speech recognition pipeline."""
-        if self._initialized:
-            return
-
-        try:
-            import torch
-            from transformers import pipeline
-
-            device_id = 0 if torch.cuda.is_available() else -1
-            print(f"Initializing Whisper STT model from '{self.model_name}' on device {device_id}...")
-            self.pipeline = pipeline(
-                "automatic-speech-recognition",
-                model=self.model_name,
-                device=device_id
+    def _get_client(self):
+        if self._client is None:
+            from google.cloud.speech_v2 import SpeechClient
+            from google.api_core.client_options import ClientOptions
+            self._client = SpeechClient(
+                client_options=ClientOptions(
+                    api_endpoint=f"{REGION}-speech.googleapis.com",
+                )
             )
-            self._initialized = True
-        except Exception as e:
-            print(f"Whisper model initialization note: {e}. Running STT with dynamic fallback mode.")
-            self.pipeline = None
-            self._initialized = True
+        return self._client
 
-    def transcribe_segment(
+    def _transcribe_api(
         self,
         audio: np.ndarray,
         sr: int,
-        language: str = "hi"
-    ) -> Dict[str, Any]:
-        """
-        Transcribes a 1D audio sample array into text.
+        language: str = "hi",
+    ) -> Optional[List[Dict[str, Any]]]:
+        from google.cloud.speech_v2.types import cloud_speech
 
-        Args:
-            audio: 1D numpy array of audio samples.
-            sr: Sample rate in Hz.
-            language: Forced target language code (default: 'hi').
-
-        Returns:
-            Dict containing:
-                - 'text': transcribed text string
-                - 'language': language code
-                - 'confidence': confidence score float
-        """
-        if len(audio) == 0 or sr <= 0:
-            return {"text": "", "language": language, "confidence": 0.0}
-
-        # Resample to 16 kHz if necessary
         if sr != 16000:
-            num_target_samples = int(round(len(audio) * 16000 / sr))
-            audio = scipy.signal.resample(audio, num_target_samples)
+            import scipy.signal
+            target = int(round(len(audio) * 16000 / sr))
+            audio = scipy.signal.resample(audio, target)
             sr = 16000
 
-        audio_float32 = audio.astype(np.float32)
+        audio_int16 = np.clip(audio * 32767, -32768, 32767).astype(np.int16)
 
-        self._initialize_pipeline()
+        lang_map = {"hi": "hi-IN", "en": "en-US"}
+        api_lang = lang_map.get(language, language)
+        recognizer_path = f"projects/{PROJECT_ID}/locations/{REGION}/recognizers/_"
 
-        if self.pipeline is not None:
-            try:
-                output = self.pipeline(
-                    {"raw": audio_float32, "sampling_rate": 16000},
-                    generate_kwargs={"language": language}
+        config = cloud_speech.RecognitionConfig(
+            explicit_decoding_config=cloud_speech.ExplicitDecodingConfig(
+                encoding=cloud_speech.ExplicitDecodingConfig.AudioEncoding.LINEAR16,
+                sample_rate_hertz=sr,
+                audio_channel_count=1,
+            ),
+            language_codes=[api_lang],
+            model="chirp_3",
+            features=cloud_speech.RecognitionFeatures(
+                enable_word_time_offsets=True,
+                enable_automatic_punctuation=True,
+            ),
+        )
+
+        client = self._get_client()
+        chunk_samples = CHUNK_SECONDS * sr
+        all_words = []
+
+        try:
+            for i in range(0, len(audio_int16), chunk_samples):
+                chunk = audio_int16[i : i + chunk_samples]
+                if len(chunk) < sr:
+                    break
+                offset = i / sr
+
+                request = cloud_speech.RecognizeRequest(
+                    recognizer=recognizer_path,
+                    config=config,
+                    content=chunk.tobytes(),
                 )
-                text = output.get("text", "").strip()
-                return {
-                    "text": text,
-                    "language": language,
-                    "confidence": 0.95 if text else 0.0
-                }
-            except Exception as e:
-                print(f"STT inference exception: {e}")
+                result = client.recognize(request=request)
 
-        # Fallback response for offline / lightweight environment testing
-        fallback_text = "[Hindi speech dialogue segment]"
-        return {
-            "text": fallback_text,
-            "language": language,
-            "confidence": 0.50
-        }
+                for r in result.results:
+                    alt = r.alternatives[0]
+                    for w in alt.words:
+                        start_s = w.start_offset.total_seconds() + offset
+                        end_s = w.end_offset.total_seconds() + offset
+                        all_words.append({
+                            "start": round(start_s, 3),
+                            "end": round(end_s, 3),
+                            "text": w.word,
+                            "probability": round(w.confidence or 0.8, 3),
+                        })
+        except Exception as e:
+            print(f"Google Cloud STT Chirp 3 error: {e}")
+            return None
 
-    def transcribe_segments(
+        return all_words
+
+    def transcribe_full(
         self,
-        segments: List[Dict[str, Any]],
+        audio: np.ndarray,
         sr: int,
-        language: str = "hi"
+        language: str = "hi",
     ) -> List[Dict[str, Any]]:
-        """
-        Processes a list of call timeline segments and attaches 'transcript' string to each.
+        words = self._transcribe_api(audio, sr, language)
+        if not words:
+            return []
 
-        Args:
-            segments: List of segment dictionaries containing 'audio' arrays.
-            sr: Sample rate in Hz.
-            language: Target language code.
+        return [
+            {
+                "start": w["start"],
+                "end": w["end"],
+                "text": w["text"],
+                "avg_logprob": -0.5,
+                "no_speech_prob": 0,
+                "words": [
+                    {
+                        "start": w["start"],
+                        "end": w["end"],
+                        "word": w["text"],
+                        "probability": w["probability"],
+                    }
+                ],
+            }
+            for w in words
+        ]
 
-        Returns:
-            Updated list of segment dictionaries with added 'transcript' and 'stt_confidence' fields.
-        """
-        processed_segments = []
+    def transcribe_diarized_segments(
+        self,
+        diarization_segments: List[Dict[str, Any]],
+        full_audio: np.ndarray,
+        sr: int,
+        language: str = "hi",
+    ) -> List[Dict[str, Any]]:
+        merged = self._merge_segments(diarization_segments, max_gap=0.5)
+        words = self._transcribe_api(full_audio, sr, language)
 
-        for seg in segments:
-            seg_copy = dict(seg)
-            audio = seg.get("audio", np.array([], dtype=np.float32))
+        if not words:
+            return [
+                {
+                    "start_time_s": d.get("start_time_s", 0),
+                    "end_time_s": d.get("end_time_s", 0),
+                    "text": "",
+                    "speaker": d.get("speaker", "agent"),
+                    "words": [],
+                    "avg_logprob": 0,
+                    "no_speech_prob": 0,
+                }
+                for d in merged
+            ]
 
-            res = self.transcribe_segment(audio, sr, language=language)
-            seg_copy["transcript"] = res["text"]
-            seg_copy["stt_confidence"] = res["confidence"]
-            processed_segments.append(seg_copy)
+        word_to_seg = [None] * len(words)
+        for wi, w in enumerate(words):
+            best_overlap = 0
+            best_idx = -1
+            for di, dseg in enumerate(merged):
+                d_start = dseg.get("start_time_s", 0)
+                d_end = dseg.get("end_time_s", 0)
+                overlap = max(0, min(w["end"], d_end) - max(w["start"], d_start))
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best_idx = di
+            if best_idx >= 0:
+                word_to_seg[wi] = best_idx
 
-        return processed_segments
+        seg_word_lists = [[] for _ in merged]
+        for wi, w in enumerate(words):
+            idx = word_to_seg[wi]
+            if idx is not None:
+                seg_word_lists[idx].append(w)
+
+        output = []
+        for di, dseg in enumerate(merged):
+            d_start = dseg.get("start_time_s", 0)
+            d_end = dseg.get("end_time_s", 0)
+            seg_words = seg_word_lists[di]
+            text = " ".join(w.get("text", "") for w in seg_words).strip()
+
+            output.append({
+                "start_time_s": d_start,
+                "end_time_s": d_end,
+                "text": text,
+                "speaker": dseg.get("speaker", "agent"),
+                "words": [
+                    {
+                        "start": round(w["start"], 3),
+                        "end": round(w["end"], 3),
+                        "word": w["text"],
+                        "probability": w["probability"],
+                    }
+                    for w in seg_words
+                ],
+                "avg_logprob": round(
+                    sum(w["probability"] for w in seg_words) / max(len(seg_words), 1), 3
+                ),
+                "no_speech_prob": 0,
+            })
+
+        return output
+
+    @staticmethod
+    def _merge_segments(
+        segments: List[Dict[str, Any]], max_gap: float = 0.5
+    ) -> List[Dict[str, Any]]:
+        if not segments:
+            return []
+        merged = [dict(segments[0])]
+        for seg in segments[1:]:
+            prev = merged[-1]
+            same_speaker = seg.get("speaker") == prev.get("speaker")
+            gap = seg.get("start_time_s", 0) - prev.get("end_time_s", 0)
+            if same_speaker and gap <= max_gap:
+                prev["end_time_s"] = max(prev.get("end_time_s", 0), seg.get("end_time_s", 0))
+            else:
+                merged.append(dict(seg))
+        return merged

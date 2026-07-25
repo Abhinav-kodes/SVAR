@@ -236,6 +236,19 @@ class DiarizationPipeline:
         return result
 
     @staticmethod
+    def offload_to_cpu():
+        global _MODEL
+        if _MODEL is None:
+            return False
+        del _MODEL
+        _MODEL = None
+        import gc; gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        return True
+
+    @staticmethod
     def _duration_confidence(dur_s: float) -> float:
         """Fallback confidence based on segment duration only."""
         if dur_s >= 2.0:
