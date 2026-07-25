@@ -27,13 +27,49 @@ IRDAI_PATTERNS = [
 ]
 
 ABUSIVE_KEYWORDS = [
-    # Hindi abusive
+    # Hindi abusive — single words
     "गाली", "गंदी", "बेवकूफ", "मूर्ख", "कमीना", "साला", "भोसड़ी", "मादरचोद",
-    "बहनचोद", "लंड", "चूत", "रंडी", "हरामी", "सुअर", "कुत्ता",
+    "बहनचोद", "लंड", "चूत", "रंडी", "हरामी", "सुअर", "कुत्ता", "कुत्ते",
+    "घटिया", "लौड़े", "लौंडा", "रंडी", "खोटा", "नालायक", "बेहया",
+    "चोर", "झूठा", "धोखेबाज", "कमीने", "साले", "हरामजादे",
     # English abusive
     "idiot", "stupid", "moron", "damn", "hell", "bastard", "asshole",
     "bitch", "crap", "fuck", "shit", "dick", "screw you", "shut up",
     "worthless", "useless", "incompetent",
+]
+
+# Compound Hindi abuse phrases (multi-word patterns not covered by single keywords)
+ABUSIVE_COMPOUND_PATTERNS = [
+    re.compile(r"तेरी\s*मां\s*चोद"),
+    re.compile(r"तेरी\s*मां\s*की\s*चूत"),
+    re.compile(r"मां\s*चुदा"),
+    re.compile(r"बहन\s*के\s*लौड़े"),
+    re.compile(r"भोसड़ी\s*के"),
+    re.compile(r"बहन\s*की\s*लौड़ी"),
+    re.compile(r"तेरी\s*बेटी\s*को\s*बेच"),
+    re.compile(r"मां\s*चोद"),
+    re.compile(r"बाप\s*चोद"),
+    re.compile(r"सुअर\s*के\s*बच्चे"),
+    re.compile(r"कुत्ते\s*की\s*तरह"),
+    re.compile(r"गांडू"),
+    re.compile(r"गांड\w*"),
+]
+
+# Threat/harassment patterns (Hindi + English)
+THREAT_PATTERNS = [
+    re.compile(r"(?:तेरी|तू)\s*(?:मां|बेटी|बहन)\s*(?:.*?(?:सोना|बेच|उठा|मार|काट|जला))"),
+    re.compile(r"(?:मिल\s*गया|मिल\s*गई)\s*(?:ना|तो)"),
+    re.compile(r"(?:मार\s*(?:ऊंगा|दूंगा|डालूंगा|देंगे))"),
+    re.compile(r"(?:काट\s*(?:ऊंगा|दूंगा|डालूंगा))"),
+    re.compile(r"(?:जला\s*(?:दूंगा|देंगे))"),
+    re.compile(r"(?:खत्म\s*(?:कर\s*दूंगा|कर\s*देंगे))"),
+    re.compile(r"(?:बर्बाद\s*(?:कर\s*दूंगा|कर\s*देंगे))"),
+    re.compile(r"(?:तबाह\s*(?:कर\s*दूंगा|कर\s*देंगे))"),
+    re.compile(r"(?:सुसाइड|आत्महत्या)"),
+    re.compile(r"(?:kill\s*you|murder\s*you|destroy\s*you|burn\s*you)"),
+    re.compile(r"(?:rape|raped|raping)"),
+    re.compile(r"(?:threaten|threatening|threat)"),
+    re.compile(r"(?:you\s*will\s*regret|you'll\s*be\s*sorry)"),
 ]
 
 ABUSIVE_PATTERNS = [re.compile(re.escape(kw), re.IGNORECASE) for kw in ABUSIVE_KEYWORDS]
@@ -62,19 +98,36 @@ def levenshtein_distance(s1: str, s2: str) -> int:
 
 
 def fuzzy_match_abusive(text: str, max_distance: int = 2) -> List[Dict[str, Any]]:
-    """Scan text for abusive keywords using exact match + Levenshtein fuzzy match."""
+    """Scan text for abusive keywords using exact match + compound patterns + threat patterns + Levenshtein fuzzy match."""
     text_lower = text.lower()
-    words = re.findall(r'\b\w+\b', text_lower)
+    words = re.findall(r'[\w\u0900-\u097F]+', text_lower)
     matches = []
-    seen = set()
+    seen_keywords = set()
 
     for kw in ABUSIVE_KEYWORDS:
-        if kw in text_lower and kw not in seen:
+        if kw in text_lower and kw not in seen_keywords:
             matches.append({"keyword": kw, "type": "exact", "distance": 0})
-            seen.add(kw)
+            seen_keywords.add(kw)
+
+    for pattern in ABUSIVE_COMPOUND_PATTERNS:
+        m = pattern.search(text)
+        if m:
+            matched = m.group()
+            is_dup = any(matched in sk or sk in matched for sk in seen_keywords)
+            if not is_dup:
+                matches.append({"keyword": matched, "type": "compound", "distance": 0})
+                seen_keywords.add(matched)
+
+    for pattern in THREAT_PATTERNS:
+        m = pattern.search(text)
+        if m:
+            matched = m.group()
+            if matched not in seen_keywords:
+                matches.append({"keyword": matched, "type": "threat", "distance": 0})
+                seen_keywords.add(matched)
 
     for word in words:
-        if word in seen or len(word) < 3:
+        if word in seen_keywords or len(word) < 5:
             continue
         for kw in ABUSIVE_KEYWORDS:
             if abs(len(word) - len(kw)) > max_distance:
@@ -82,7 +135,7 @@ def fuzzy_match_abusive(text: str, max_distance: int = 2) -> List[Dict[str, Any]
             dist = levenshtein_distance(word, kw)
             if 0 < dist <= max_distance:
                 matches.append({"keyword": kw, "matched": word, "type": "fuzzy", "distance": dist})
-                seen.add(word)
+                seen_keywords.add(word)
                 break
 
     return matches
@@ -122,7 +175,12 @@ def analyze_transcript(transcript: str) -> Dict[str, Any]:
     flags = []
 
     if abusive:
-        flags.extend([f"ABUSIVE:{m['keyword']}" for m in abusive])
+        for m in abusive:
+            mtype = m.get("type", "exact")
+            if mtype == "threat":
+                flags.append(f"THREAT:{m['keyword']}")
+            else:
+                flags.append(f"ABUSIVE:{m['keyword']}")
     if regulatory["rbi_violations"]:
         flags.extend([f"RBI:{v['match']}" for v in regulatory["rbi_violations"]])
     if regulatory["irdai_violations"]:
@@ -157,8 +215,8 @@ def analyze_call(segments: List[Dict[str, Any]]) -> Dict[str, Any]:
         speaker = seg.get("speaker", "unknown")
         analysis = analyze_transcript(text)
         analysis["speaker"] = speaker
-        analysis["start"] = seg.get("start", 0)
-        analysis["end"] = seg.get("end", 0)
+        analysis["start"] = seg.get("start", seg.get("start_time_s", 0))
+        analysis["end"] = seg.get("end", seg.get("end_time_s", 0))
         results.append(analysis)
 
         vcount = analysis["violation_count"]

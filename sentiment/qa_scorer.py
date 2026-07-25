@@ -84,7 +84,7 @@ def compute_talk_ratio(segments: List[Dict[str, Any]]) -> float:
     agent_time = 0.0
     customer_time = 0.0
     for seg in segments:
-        dur = float(seg.get("end", 0)) - float(seg.get("start", 0))
+        dur = float(seg.get("end", seg.get("end_time_s", 0))) - float(seg.get("start", seg.get("start_time_s", 0)))
         speaker = str(seg.get("speaker", "")).lower()
         if "agent" in speaker:
             agent_time += dur
