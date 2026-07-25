@@ -23,6 +23,7 @@ _cache = {}
 _denoiser = None
 _diarizer = None
 _stt = None
+_acoustic_pipeline = None
 _muril_model = None
 _muril_tokenizer = None
 _device = "cpu"
@@ -57,6 +58,15 @@ def _get_stt():
         from sentiment.stt.stt_transcriber import SpeechToTextTranscriber
         _stt = SpeechToTextTranscriber()
     return _stt
+
+
+def _get_acoustic():
+    global _acoustic_pipeline
+    if _acoustic_pipeline is None:
+        log("Loading acoustic emotion pipeline...")
+        from sentiment.acoustic_emotion.acoustic_pipeline import analyze_acoustic_emotions
+        _acoustic_pipeline = analyze_acoustic_emotions
+    return _acoustic_pipeline
 
 
 def _get_muril():
@@ -261,15 +271,42 @@ def api_text_emotion(handler, filename):
         else:
             text_results.append({"emotion": "neutral", "confidence": 0.0, "sentiment": "neutral"})
 
-    for i, seg in enumerate(c["segments"]):
-        if i < len(text_results):
-            seg["emotion"] = text_results[i]["emotion"]
-            seg["sentiment"] = text_results[i]["sentiment"]
-            seg["confidence"] = text_results[i]["confidence"]
-
-    c["fusion"] = text_results
-    c["emotion_analyzed"] = True
     log(f"  Text emotion done ({time.time()-t0:.1f}s)")
+
+    t1 = time.time()
+    analyze = _get_acoustic()
+    clean_audio = c.get("clean_audio")
+    sr = c.get("sr", 16000)
+    if clean_audio is not None:
+        analyze(clean_audio, sr, c["segments"])
+        log(f"  Acoustic emotion done ({time.time()-t1:.1f}s)")
+    else:
+        for seg in c["segments"]:
+            seg["acoustic_emotion"] = {
+                "emotion": "neutral", "confidence": 0.0,
+                "indeterminate": True, "all_scores": {},
+                "prosodic_features": {}, "deltas": {},
+            }
+
+    t2 = time.time()
+    from sentiment.fusion_layer import fuse_segments
+    fused = fuse_segments(text_results, [
+        seg.get("acoustic_emotion", {
+            "emotion": "neutral", "confidence": 0.0, "indeterminate": True
+        }) for seg in c["segments"]
+    ])
+    log(f"  Fusion done ({time.time()-t2:.1f}s)")
+
+    for i, seg in enumerate(c["segments"]):
+        if i < len(fused):
+            seg["emotion"] = fused[i]["emotion"]
+            seg["sentiment"] = fused[i]["sentiment"]
+            seg["confidence"] = fused[i]["confidence"]
+            seg["fusion_source"] = fused[i].get("source", "text")
+
+    c["fusion"] = fused
+    c["emotion_analyzed"] = True
+    log(f"  Emotion pipeline done ({time.time()-t0:.1f}s)")
 
     return {
         "duration_s": c["duration"],
