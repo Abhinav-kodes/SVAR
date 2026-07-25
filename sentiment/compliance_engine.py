@@ -11,7 +11,7 @@ RBI_PATTERNS = [
     r"(?i)(?:bank\s+account\s+(?:number|details))",
     r"(?i)(?:atm\s+pin|net\s+banking\s+(?:password|pin))",
     r"(?i)(?:upi\s+(?:pin|password)|paytm\s+pin)",
-    r"हिंदी|बैंक(?:\s+खाता|\s+विवरण)|पिन(?:\s+शेयर|\s+बताओ)|ओटीपी(?:\s+भेजो|\s+बताओ)",
+    r"बैंक(?:\s+खाता|\s+विवरण)|पिन(?:\s+शेयर|\s+बताओ)|ओटीपी(?:\s+भेजो|\s+बताओ)",
     r"(?i)आधार\s*(?:नंबर|संख्या|शेयर|बताओ)",
     r"(?i)(?:पैसे?\s+भेजो|पेमेंट\s+करो|ट्रांसफर\s+करो)",
 ]
@@ -30,13 +30,36 @@ ABUSIVE_KEYWORDS = [
     # Hindi abusive — single words
     "गाली", "गंदी", "बेवकूफ", "मूर्ख", "कमीना", "साला", "भोसड़ी", "मादरचोद",
     "बहनचोद", "लंड", "चूत", "रंडी", "हरामी", "सुअर", "कुत्ता", "कुत्ते",
-    "घटिया", "लौड़े", "लौंडा", "रंडी", "खोटा", "नालायक", "बेहया",
+    "घटिया", "लौड़े", "लौंडा", "खोटा", "नालायक", "बेहया",
     "चोर", "झूठा", "धोखेबाज", "कमीने", "साले", "हरामजादे",
     # English abusive
     "idiot", "stupid", "moron", "bastard", "asshole",
     "bitch", "fuck", "shit", "dick", "screw you", "shut up",
     "worthless", "useless", "incompetent",
 ]
+
+# Common Hindi words that sound/look similar to abusive words but are innocent
+# Used to suppress fuzzy false positives
+WHITELIST_HINDI = {
+    "कमीज", "कमीज़",        # shirt (looks like कमीना/कमीने)
+    "कितने", "कितना",        # how many (looks like कमीने)
+    "बेचना", "बेचेंगे",      # to sell (looks like बेहया)
+    "सीने", "सीना",          # chest/stitch (looks like कमीने)
+    "करना", "करेंगे",        # to do (looks like कमीना)
+    "पत्रिका",               # magazine (looks like भोसड़ी)
+    "पड़ोसे", "पड़ोसी",      # neighbor (looks like लौड़े)
+    "दूल्हे", "दूल्हा",      # groom (looks like लौड़े)
+    "भैया", "भैये",          # brother
+    "मालूम",                  # to know
+    "काहे",                   # why
+    "बांटता",                 # to distribute
+    "चिकट",                   # close/stingy
+    "धोती",                   # dhoti (garment)
+    "सलवार",                  # salwar (garment)
+    "कमीज",                   # shirt
+    "सीले",                   # sealed
+    "चिकना",                  # smooth
+}
 
 # Compound Hindi abuse phrases (multi-word patterns not covered by single keywords)
 ABUSIVE_COMPOUND_PATTERNS = [
@@ -98,7 +121,12 @@ def levenshtein_distance(s1: str, s2: str) -> int:
 
 
 def fuzzy_match_abusive(text: str, max_distance: int = 2) -> List[Dict[str, Any]]:
-    """Scan text for abusive keywords using exact match + compound patterns + threat patterns + Levenshtein fuzzy match."""
+    """Scan text for abusive keywords using exact match + compound patterns + threat patterns + Levenshtein fuzzy match.
+
+    Uses adaptive distance: max_distance=1 for words < 6 chars (prevents false positives
+    on common Hindi words like कमीज/कमीना, कितने/कमीने, बेचना/बेहया).
+    Uses a whitelist to skip known innocent words.
+    """
     text_lower = text.lower()
     words = re.findall(r'[\w\u0900-\u097F]+', text_lower)
     matches = []
@@ -127,13 +155,14 @@ def fuzzy_match_abusive(text: str, max_distance: int = 2) -> List[Dict[str, Any]
                 seen_keywords.add(matched)
 
     for word in words:
-        if word in seen_keywords or len(word) < 5:
+        if word in seen_keywords or len(word) < 5 or word in WHITELIST_HINDI:
             continue
+        adaptive_distance = 1 if len(word) < 6 else max_distance
         for kw in ABUSIVE_KEYWORDS:
-            if abs(len(word) - len(kw)) > max_distance:
+            if abs(len(word) - len(kw)) > adaptive_distance:
                 continue
             dist = levenshtein_distance(word, kw)
-            if 0 < dist <= max_distance:
+            if 0 < dist <= adaptive_distance:
                 matches.append({"keyword": kw, "matched": word, "type": "fuzzy", "distance": dist})
                 seen_keywords.add(word)
                 break
