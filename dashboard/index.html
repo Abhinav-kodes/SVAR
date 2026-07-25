@@ -145,6 +145,7 @@
     tr{cursor:pointer;transition:background 0.12s}
     tr:hover{background:rgba(255,255,255,0.03)}
     tr.active-row{background:rgba(6,182,212,0.1)!important}
+    .tr-line.active-row{background:rgba(6,182,212,0.08)!important;border-left-color:var(--cyan)!important}
     .spk-tag{display:inline-flex;align-items:center;padding:0.2rem 0.5rem;border-radius:5px;font-weight:600;font-size:0.7rem;text-transform:uppercase}
     .spk-tag.agent{background:rgba(6,182,212,0.12);color:var(--cyan);border:1px solid rgba(6,182,212,0.25)}
     .spk-tag.customer{background:rgba(245,158,11,0.12);color:var(--amber);border:1px solid rgba(245,158,11,0.25)}
@@ -276,7 +277,7 @@ const TABS = [
 ];
 const TAB_API = {
   denoising:'/api/denoise', diarization:'/api/diarize', transcript:'/api/transcribe',
-  textemo:'/api/text-emotion', fusion:'/api/text-emotion', compliance:'/api/compliance',
+  textemo:'/api/text-emotion', acousticemo:'/api/text-emotion', fusion:'/api/text-emotion', compliance:'/api/compliance',
   qascore:'/api/qa-score', crm:'/api/crm-note',
 };
 let activeTab = 'summary';
@@ -497,8 +498,13 @@ function renderTranscript(d){
   d.segments.forEach((s,i) => {
     if(!s.text) return;
     const div = document.createElement('div');
-    div.style.cssText = 'display:flex;gap:0.6rem;padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.03)';
+    div.id = 'tr-row-'+i;
+    div.dataset.start = s.start_time_s;
+    div.dataset.end = s.end_time_s;
+    div.className = 'tr-line';
+    div.style.cssText = 'display:flex;gap:0.6rem;padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer;border-left:3px solid transparent;transition:all 0.15s';
     div.innerHTML = `<span class="spk-tag ${s.speaker}" style="flex-shrink:0;margin-top:2px">${s.speaker==='agent'?'Agent':'Cust'}</span><div><div style="font-size:0.68rem;color:var(--text-dim);margin-bottom:0.15rem">${s.start_time_s?.toFixed(1)}s – ${s.end_time_s?.toFixed(1)}s</div><div style="font-size:0.88rem;line-height:1.5">${s.text}</div></div>`;
+    div.onclick = () => { audioPlayer.currentTime = s.start_time_s; audioPlayer.play(); };
     body.appendChild(div);
   });
 }
@@ -520,6 +526,7 @@ function renderTextEmotion(d){
     const sent = s.sentiment || 'neutral';
     const conf = s.confidence || 0;
     const tr = document.createElement('tr');
+    tr.id = 'te-row-'+i;
     tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${s.speaker==='agent'?'Agent':'Cust'}</span></td><td><span class="emo-chip ${emo}">${emo}</span></td><td><span class="emo-chip ${sent}">${sent}</span></td><td>${(conf*100).toFixed(0)}%</td><td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.78rem;color:var(--text-dim)">${s.text||''}</td>`;
     body.appendChild(tr);
   });
@@ -527,20 +534,23 @@ function renderTextEmotion(d){
 
 function renderAcousticEmotion(d){
   const el = document.getElementById('tab-acousticemo');
-  const ac = d?.acoustic_results;
-  if(!ac || !ac.length){el.innerHTML='<div class="empty">Acoustic emotion requires model — results will appear here after integration</div>';return}
+  const segs = d?.segments || [];
+  const results = segs.map(s => s.acoustic_emotion).filter(Boolean);
+  if(!results.length){el.innerHTML='<div class="empty">No acoustic emotion data — run transcript first</div>';return}
   el.innerHTML = `
     <div class="card"><div class="card-title">🎵 Acoustic Emotion (Prosodic)</div>
       <div class="tbl-wrap"><table>
-        <thead><tr><th>#</th><th>Emotion</th><th>Confidence</th><th>Indeterminate</th></tr></thead>
+        <thead><tr><th>#</th><th>Speaker</th><th>Emotion</th><th>Confidence</th><th>Indeterminate</th></tr></thead>
         <tbody id="acEmoBody"></tbody>
       </table></div>
     </div>
   `;
   const body = document.getElementById('acEmoBody');
-  ac.forEach((r,i) => {
+  segs.forEach((s,i) => {
+    const r = s.acoustic_emotion || {};
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="emo-chip ${r.emotion||'neutral'}">${r.emotion||'neutral'}</span></td><td>${((r.confidence||0)*100).toFixed(0)}%</td><td>${r.indeterminate?'⚠️':'✅'}</td>`;
+    tr.id = 'ae-row-'+i;
+    tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker||'agent'}">${(s.speaker||'agent')==='agent'?'Agent':'Cust'}</span></td><td><span class="emo-chip ${r.emotion||'neutral'}">${r.emotion||'neutral'}</span></td><td>${((r.confidence||0)*100).toFixed(0)}%</td><td>${r.indeterminate?'⚠️':'✅'}</td>`;
     body.appendChild(tr);
   });
 }
@@ -561,6 +571,7 @@ function renderFusion(d){
   d.segments.forEach((s,i) => {
     const f = fused[i] || {};
     const tr = document.createElement('tr');
+    tr.id = 'fu-row-'+i;
     tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td><span class="spk-tag ${s.speaker}">${s.speaker==='agent'?'Agent':'Cust'}</span></td><td><span class="emo-chip ${f.emotion||'neutral'}">${f.emotion||'neutral'}</span></td><td><span class="emo-chip ${f.sentiment||'neutral'}">${f.sentiment||'neutral'}</span></td><td>${((f.confidence||0)*100).toFixed(0)}%</td><td style="font-size:0.75rem;color:var(--text-dim)">${f.source||'--'}${f.text_weight?' tw:'+f.text_weight:''}</td>`;
     body.appendChild(tr);
   });
@@ -655,10 +666,22 @@ if(audioPlayer){
     const ph = document.getElementById('playhead');
     if(ph) ph.style.left = Math.min(cur/dur*100,100)+'%';
     data.segments.forEach((s,i) => {
+      const active = cur >= s.start_time_s && cur <= s.end_time_s;
       const seg = document.querySelector(`.tl-seg[data-idx="${i}"]`);
-      if(seg) seg.classList.toggle('active-play', cur >= s.start_time_s && cur <= s.end_time_s);
+      if(seg) seg.classList.toggle('active-play', active);
       const row = document.getElementById('diar-row-'+i);
-      if(row) row.classList.toggle('active-row', cur >= s.start_time_s && cur <= s.end_time_s);
+      if(row) row.classList.toggle('active-row', active);
+      const tr = document.getElementById('tr-row-'+i);
+      if(tr) {
+        tr.classList.toggle('active-row', active);
+        if(active) tr.scrollIntoView({behavior:'smooth',block:'nearest'});
+      }
+      const te = document.getElementById('te-row-'+i);
+      if(te) te.classList.toggle('active-row', active);
+      const fu = document.getElementById('fu-row-'+i);
+      if(fu) fu.classList.toggle('active-row', active);
+      const ae = document.getElementById('ae-row-'+i);
+      if(ae) ae.classList.toggle('active-row', active);
     });
   };
 }

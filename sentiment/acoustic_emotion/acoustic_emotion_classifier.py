@@ -65,7 +65,8 @@ EMOTION_PROFILES = {
 def classify_acoustic_emotion(
     delta_features: Dict[str, float],
     hif0_section: str = "middle",
-    confidence_threshold: float = 0.30
+    confidence_threshold: float = 0.20,
+    temperature: float = 0.35
 ) -> Dict[str, Any]:
     """
     Classifies emotion from standardized acoustic feature deltas against research emotion profiles.
@@ -74,6 +75,7 @@ def classify_acoustic_emotion(
         delta_features: Dict of feature deltas (pitch_d, energy_d, rate_d, jitter_d, pause_r).
         hif0_section: Section of peak pitch F0 ('beginning', 'middle', 'end').
         confidence_threshold: Threshold below which prediction is marked indeterminate.
+        temperature: Softmax temperature — lower values sharpen the distribution.
 
     Returns:
         Dict containing:
@@ -91,19 +93,23 @@ def classify_acoustic_emotion(
     for emotion, profile in EMOTION_PROFILES.items():
         profile_vec = np.array([float(profile[k]) for k in feature_keys], dtype=np.float32)
 
-        # Distance / Similarity calculation
-        dist = np.linalg.norm(query_vec - profile_vec)
+        # Weighted distance: pitch and energy carry more emotional signal
+        weights = np.array([1.5, 1.3, 1.0, 0.8, 0.7], dtype=np.float32)
+        diff = query_vec - profile_vec
+        dist = float(np.sqrt(np.sum(weights * diff * diff)))
+
         sim = 1.0 / (1.0 + dist)
 
-        # HiF0 position matching bonus
+        # HiF0 position matching bonus (applied before temperature scaling)
         if profile.get("hif0") == hif0_section:
-            sim += 0.30
+            sim += 0.10
 
         raw_scores[emotion] = float(sim)
 
-    # Convert similarity scores to softmax probabilities
+    # Convert similarity scores to softmax probabilities with temperature scaling
     score_vals = np.array(list(raw_scores.values()), dtype=np.float32)
-    exp_scores = np.exp(score_vals - np.max(score_vals))
+    scaled = score_vals / max(temperature, 1e-5)
+    exp_scores = np.exp(scaled - np.max(scaled))
     probs = exp_scores / np.sum(exp_scores)
 
     all_scores = {emo: float(prob) for emo, prob in zip(raw_scores.keys(), probs)}
