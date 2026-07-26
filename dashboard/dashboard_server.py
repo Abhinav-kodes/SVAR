@@ -347,6 +347,7 @@ def stage_qa(filename):
     c["qa"] = score_call(c["segments"], emotions_with_speakers, c["compliance"])
 
 
+
 def stage_crm(filename):
     c = _ensure_cache(filename)
     if "crm_note" in c:
@@ -356,6 +357,37 @@ def stage_crm(filename):
     from sentiment.crm_note_generator import generate_crm_note
     transcript = " ".join(s.get("text", "") for s in c["segments"] if s.get("text"))
     c["crm_note"] = generate_crm_note(transcript, c["fusion"], c["compliance"], c["qa"])
+
+
+
+def stage_audit(filename):
+    """Execute unified Gemini audit for compliance, QA scorecard & CRM note in 1 call."""
+    c = _ensure_cache(filename)
+    if "compliance" in c and "qa" in c and "crm_note" in c:
+        return
+    if not c.get("transcribed"):
+        stage_stt(filename)
+    if not c.get("fusion"):
+        stage_fusion(filename)
+
+    try:
+        from sentiment.audit_llm import run_unified_audit
+        audit_res = run_unified_audit(c["segments"], c.get("talk_ratio"))
+        if audit_res:
+            c["compliance"] = audit_res["compliance"]
+            c["qa"] = audit_res["qa"]
+            c["crm_note"] = audit_res["crm_note"]
+            log("  [audit] Unified Gemini Audit completed for compliance, QA, and CRM note")
+            return
+    except Exception as e:
+        log(f"  [audit] Unified Gemini Audit fallback: {e}")
+
+    if "compliance" not in c:
+        stage_compliance(filename)
+    if "qa" not in c:
+        stage_qa(filename)
+    if "crm_note" not in c:
+        stage_crm(filename)
 
 
 # ── Background pipeline runner ──
@@ -396,7 +428,7 @@ def _run_pipeline(filename):
 
             with ThreadPoolExecutor(max_workers=2) as pool:
                 te_f = pool.submit(_timed_stage, filename, "text_emo", lambda: stage_text_emotion(filename))
-                co_f = pool.submit(_timed_stage, filename, "compliance", lambda: stage_compliance(filename))
+                co_f = pool.submit(_timed_stage, filename, "compliance", lambda: stage_audit(filename))
                 te_f.result()
                 co_f.result()
 
@@ -417,6 +449,27 @@ def _run_pipeline(filename):
 
 
 # ── API handler functions ──
+
+def api_results(handler, filename):
+    c = _ensure_cache(filename)
+    if "crm_note" not in c and "segments" in c:
+        try:
+            stage_audit(filename)
+        except Exception as e:
+            log(f"  [api_results] stage_audit fallback: {e}")
+    return {
+        "duration_s": c.get("duration"),
+        "processing_time_s": c.get("processing_time_s"),
+        "segments": c.get("segments"),
+        "talk_ratio": c.get("talk_ratio", {}),
+        "denoise_metrics": c.get("denoise_metrics"),
+        "role_resolution": c.get("role_resolution", {}),
+        "fusion": c.get("fusion", []),
+        "compliance": c.get("compliance"),
+        "qa": c.get("qa"),
+        "crm_note": c.get("crm_note"),
+    }
+
 
 def api_analyze(handler, filename):
     c = _ensure_cache(filename)
@@ -474,9 +527,9 @@ def api_compliance(handler, filename):
     c = _ensure_cache(filename)
     if "crm_note" not in c and "segments" in c:
         try:
-            stage_crm(filename)
+            stage_audit(filename)
         except Exception as e:
-            log(f"  [api_compliance] crm_note fallback: {e}")
+            log(f"  [api_compliance] stage_audit fallback: {e}")
     return {
         "compliance": c.get("compliance"),
         "crm_note": c.get("crm_note"),
@@ -487,9 +540,9 @@ def api_qa_score(handler, filename):
     c = _ensure_cache(filename)
     if "crm_note" not in c and "segments" in c:
         try:
-            stage_crm(filename)
+            stage_audit(filename)
         except Exception as e:
-            log(f"  [api_qa_score] crm_note fallback: {e}")
+            log(f"  [api_qa_score] stage_audit fallback: {e}")
     return {
         "qa": c.get("qa"),
         "crm_note": c.get("crm_note"),
@@ -501,9 +554,9 @@ def api_crm_note(handler, filename):
     c = _ensure_cache(filename)
     if "crm_note" not in c and "segments" in c:
         try:
-            stage_crm(filename)
+            stage_audit(filename)
         except Exception as e:
-            log(f"  [api_crm_note] crm_note fallback: {e}")
+            log(f"  [api_crm_note] stage_audit fallback: {e}")
     return {
         "crm_note": c.get("crm_note"),
         "compliance": c.get("compliance"),
@@ -511,8 +564,8 @@ def api_crm_note(handler, filename):
     }
 
 
-
 API_ROUTES = {
+    "/api/results": api_results,
     "/api/analyze": api_analyze,
     "/api/denoise": api_denoise,
     "/api/diarize": api_diarize,
@@ -522,6 +575,7 @@ API_ROUTES = {
     "/api/qa-score": api_qa_score,
     "/api/crm-note": api_crm_note,
 }
+
 
 
 class DashboardHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):

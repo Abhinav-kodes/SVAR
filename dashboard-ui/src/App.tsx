@@ -46,45 +46,23 @@ export const App: React.FC = () => {
       .catch((err) => console.error('Failed to load sample calls:', err));
   }, []);
 
-  // Fetch all endpoints result after analysis finishes
+  // Fetch complete call analysis in a single unified API request
   const fetchAllResults = useCallback(async (filename: string) => {
-    const endpoints: Record<string, string> = {
-      denoise: '/api/denoise',
-      diarize: '/api/diarize',
-      transcribe: '/api/transcribe',
-      emotion: '/api/emotion',
-      compliance: '/api/compliance',
-      qascore: '/api/qa-score',
-      crm: '/api/crm-note',
-    };
-
     try {
-      const merged: CallData = {};
-      const responses = await Promise.all(
-        Object.values(endpoints).map(async (url) => {
-          try {
-            const res = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ filename }),
-            });
-            if (res.ok) return await res.json();
-          } catch (e) {
-            console.error(`Error fetching ${url}:`, e);
-          }
-          return null;
-        })
-      );
-
-      responses.forEach((data) => {
-        if (data) Object.assign(merged, data);
+      const res = await fetch('/api/results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename }),
       });
-
-      setCallData(merged);
+      if (res.ok) {
+        const data: CallData = await res.json();
+        setCallData(data);
+      }
     } catch (err) {
-      console.error('Error fetching all pipeline results:', err);
+      console.error('Error fetching call results:', err);
     }
   }, []);
+
 
   // Poll progress
   const pollProgress = useCallback(
