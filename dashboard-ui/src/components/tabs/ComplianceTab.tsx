@@ -5,9 +5,10 @@ import { AlertTriangle } from 'lucide-react';
 interface ComplianceTabProps {
   data: CallData;
   onSeekAudio?: (timeSeconds: number) => void;
+  currentTime?: number;
 }
 
-export const ComplianceTab: React.FC<ComplianceTabProps> = ({ data, onSeekAudio }) => {
+export const ComplianceTab: React.FC<ComplianceTabProps> = ({ data, onSeekAudio, currentTime = 0 }) => {
   const compliance = data?.compliance;
 
   if (!compliance) {
@@ -76,12 +77,14 @@ export const ComplianceTab: React.FC<ComplianceTabProps> = ({ data, onSeekAudio 
                 const isWarn = cat === 'ABUSIVE';
 
                 const tierClass = isCritical ? 'tier-critical' : isWarn ? 'tier-warn' : '';
+                const isActive = currentTime >= startTime && currentTime < (startTime + 4);
 
                 return (
                   <div
                     key={`${sIdx}-${fIdx}`}
                     onClick={() => onSeekAudio?.(startTime)}
-                    className={`evidence cursor-pointer transition-colors duration-100 hover:bg-[#211C15]/80 ${tierClass}`}
+                    className={`evidence cursor-pointer transition-all duration-150 hover:bg-[#211C15]/80 ${tierClass}`}
+                    style={isActive ? { outline: '2px solid var(--amber)', outlineOffset: '1px', background: 'var(--amber-dim)' } : undefined}
                     title="Click to play audio from this timestamp"
                   >
                     <div className="flex items-start gap-3 min-w-0">

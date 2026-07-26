@@ -14,6 +14,8 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import type { TabId, CallData, ProgressState } from './types/dashboard';
 
 
+import type { SeekRequest } from './components/AudioPlayerBar';
+
 export const App: React.FC = () => {
   const [files, setFiles] = useState<string[]>([]);
   const [activeFile, setActiveFile] = useState<string>('');
@@ -22,7 +24,7 @@ export const App: React.FC = () => {
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const [callData, setCallData] = useState<CallData>({});
   const [currentTime, setCurrentTime] = useState<number>(0);
-  const [seekTime, setSeekTime] = useState<number | null>(null);
+  const [seekTime, setSeekTime] = useState<SeekRequest | null>(null);
 
   // Fetch list of available sample call files
   useEffect(() => {
@@ -125,7 +127,7 @@ export const App: React.FC = () => {
 
 
   const handleSeekAudio = (timeSec: number) => {
-    setSeekTime(timeSec);
+    setSeekTime({ time: timeSec, id: Date.now() });
   };
 
   const audioUrl = activeFile ? `/audio/${activeFile}` : '';
@@ -156,9 +158,11 @@ export const App: React.FC = () => {
             {activeTab === 'transcript' && (
               <TranscriptTab data={callData} onSeekAudio={handleSeekAudio} currentTime={currentTime} />
             )}
-            {activeTab === 'emotion' && <EmotionTab data={callData} onSeekAudio={handleSeekAudio} />}
+            {activeTab === 'emotion' && (
+              <EmotionTab data={callData} onSeekAudio={handleSeekAudio} currentTime={currentTime} />
+            )}
             {activeTab === 'compliance' && (
-              <ComplianceTab data={callData} onSeekAudio={handleSeekAudio} />
+              <ComplianceTab data={callData} onSeekAudio={handleSeekAudio} currentTime={currentTime} />
             )}
             {activeTab === 'qascore' && <QAScoreTab data={callData} />}
             {activeTab === 'crm' && <CRMTab data={callData} />}

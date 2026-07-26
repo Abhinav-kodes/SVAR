@@ -1,10 +1,15 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
 
+export interface SeekRequest {
+  time: number;
+  id: number;
+}
+
 interface AudioPlayerBarProps {
   audioUrl: string;
   onTimeUpdate?: (currentTimeSeconds: number) => void;
-  seekTime?: number | null;
+  seekTime?: SeekRequest | number | null;
 }
 
 export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
@@ -20,13 +25,33 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
   const [isMuted, setIsMuted] = useState(false);
 
   useEffect(() => {
-    if (audioRef.current && typeof seekTime === 'number' && !isNaN(seekTime)) {
-      audioRef.current.currentTime = seekTime;
-      setCurrentTime(seekTime);
-      audioRef.current
-        .play()
-        .then(() => setIsPlaying(true))
-        .catch((err) => console.error('Audio play error on seek:', err));
+    if (!seekTime || !audioRef.current) return;
+    const targetTime = typeof seekTime === 'number' ? seekTime : seekTime.time;
+    if (isNaN(targetTime)) return;
+
+    const audio = audioRef.current;
+
+    const performSeek = () => {
+      try {
+        audio.currentTime = targetTime;
+        setCurrentTime(targetTime);
+        audio
+          .play()
+          .then(() => setIsPlaying(true))
+          .catch((err) => console.error('Audio play error on seek:', err));
+      } catch (e) {
+        console.error('Error seeking audio:', e);
+      }
+    };
+
+    if (audio.readyState >= 1) {
+      performSeek();
+    } else {
+      const onLoaded = () => {
+        performSeek();
+        audio.removeEventListener('loadedmetadata', onLoaded);
+      };
+      audio.addEventListener('loadedmetadata', onLoaded);
     }
   }, [seekTime]);
 

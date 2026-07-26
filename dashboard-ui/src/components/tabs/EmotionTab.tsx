@@ -5,9 +5,10 @@ import type { CallData } from '../../types/dashboard';
 interface EmotionTabProps {
   data: CallData;
   onSeekAudio?: (timeSeconds: number) => void;
+  currentTime?: number;
 }
 
-export const EmotionTab: React.FC<EmotionTabProps> = ({ data, onSeekAudio }) => {
+export const EmotionTab: React.FC<EmotionTabProps> = ({ data, onSeekAudio, currentTime = 0 }) => {
   const fusion = data?.fusion || [];
   const segments = data?.segments || [];
 
@@ -75,11 +76,14 @@ export const EmotionTab: React.FC<EmotionTabProps> = ({ data, onSeekAudio }) => 
             const emotionTagClass = isNegative ? 'tag-negative' : emotion === 'joy' ? 'tag-positive' : 'tag-neutral';
             const toneColor = sentiment === 'negative' ? 'var(--red-strong)' : sentiment === 'positive' ? 'var(--green)' : 'var(--text-secondary)';
 
+            const isActive = currentTime >= seg.start_time_s && currentTime < (seg.end_time_s || seg.start_time_s + 4);
+
             return (
               <div
                 key={idx}
                 onClick={() => onSeekAudio?.(seg.start_time_s)}
-                className={`trow cursor-pointer transition-colors duration-100 hover:bg-[#211C15]/60 ${isNegative ? 'trow-hi' : ''}`}
+                className={`trow cursor-pointer transition-all duration-150 hover:bg-[#211C15]/80 ${isNegative && !isActive ? 'trow-hi' : ''}`}
+                style={isActive ? { background: 'var(--amber-dim)', margin: '0 -14px', padding: '13px 14px', borderRadius: '8px', borderBottomColor: 'transparent', outline: '1px solid var(--amber)' } : undefined}
                 title="Click to play audio from this turn"
               >
                 <span className={`tag ${isAgent ? 'tag-agent' : 'tag-customer'}`}>

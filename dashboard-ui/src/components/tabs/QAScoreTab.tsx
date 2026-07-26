@@ -8,14 +8,14 @@ interface QAScoreTabProps {
 }
 
 const GaugeSVG: React.FC<{ score: number }> = ({ score }) => {
-  const angle = (score / 100) * 180 - 180;
+  const angle = (score / 100) * 180;
   return (
     <svg width="200" height="124" viewBox="0 0 180 112">
       <path d="M 20 90 A 70 70 0 0 1 68.4 23.4" fill="none" stroke="var(--red)" strokeWidth="9" strokeLinecap="round" opacity={0.55} />
       <path d="M 68.4 23.4 A 70 70 0 0 1 131.2 33.4" fill="none" stroke="var(--amber)" strokeWidth="9" opacity={0.3} />
       <path d="M 131.2 33.4 A 70 70 0 0 1 160 90" fill="none" stroke="var(--green)" strokeWidth="9" opacity={0.3} />
       <g style={{ transformOrigin: '90px 90px', transform: `rotate(${angle}deg)`, transition: 'transform 1s cubic-bezier(.2,.8,.2,1) .3s' }}>
-        <line x1="90" y1="90" x2="30" y2="79" stroke="var(--amber-strong)" strokeWidth="2.5" strokeLinecap="round" />
+        <line x1="90" y1="90" x2="30" y2="90" stroke="var(--amber-strong)" strokeWidth="2.5" strokeLinecap="round" />
       </g>
       <circle cx="90" cy="90" r="5.5" fill="var(--amber-strong)" />
     </svg>
