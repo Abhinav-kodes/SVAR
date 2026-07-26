@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 from google import genai
 from google.genai import types
 
-_MODEL = "gemini-2.5-flash"
+_MODEL = "gemini-3.5-flash-lite"
 _FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-3.5-flash"]
 _KEYS_PATH = Path(__file__).resolve().parent.parent / "credentials" / "gemini-api-keys.json"
 

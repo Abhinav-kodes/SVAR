@@ -472,17 +472,44 @@ def api_emotion(handler, filename):
 
 def api_compliance(handler, filename):
     c = _ensure_cache(filename)
-    return {"compliance": c.get("compliance")}
+    if "crm_note" not in c and "segments" in c:
+        try:
+            stage_crm(filename)
+        except Exception as e:
+            log(f"  [api_compliance] crm_note fallback: {e}")
+    return {
+        "compliance": c.get("compliance"),
+        "crm_note": c.get("crm_note"),
+    }
 
 
 def api_qa_score(handler, filename):
     c = _ensure_cache(filename)
-    return {"qa": c.get("qa")}
+    if "crm_note" not in c and "segments" in c:
+        try:
+            stage_crm(filename)
+        except Exception as e:
+            log(f"  [api_qa_score] crm_note fallback: {e}")
+    return {
+        "qa": c.get("qa"),
+        "crm_note": c.get("crm_note"),
+        "compliance": c.get("compliance"),
+    }
 
 
 def api_crm_note(handler, filename):
     c = _ensure_cache(filename)
-    return {"crm_note": c.get("crm_note")}
+    if "crm_note" not in c and "segments" in c:
+        try:
+            stage_crm(filename)
+        except Exception as e:
+            log(f"  [api_crm_note] crm_note fallback: {e}")
+    return {
+        "crm_note": c.get("crm_note"),
+        "compliance": c.get("compliance"),
+        "qa": c.get("qa"),
+    }
+
 
 
 API_ROUTES = {

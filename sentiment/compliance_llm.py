@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 from google import genai
 from google.genai import types
 
-_MODEL = "gemini-2.5-flash"
+_MODEL = "gemini-3.5-flash-lite"
 
 _FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-3.5-flash"]
 
@@ -121,7 +121,7 @@ Each object: {{"index": <int>, "violations": [{{"type": "abusive"|"rbi"|"irdai",
                         contents=prompt,
                         config=types.GenerateContentConfig(
                             temperature=0.1,
-                            max_output_tokens=4096,
+                            max_output_tokens=8192,
                         ),
                     )
                     if response.text:
@@ -140,14 +140,26 @@ Each object: {{"index": <int>, "violations": [{{"type": "abusive"|"rbi"|"irdai",
         if text.startswith("```"):
             text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
 
+        parsed = []
         try:
             parsed = json.loads(text)
         except json.JSONDecodeError:
-            print(f"[compliance_llm] Failed to parse LLM output: {text[:200]}")
-            return []
+            # Attempt to fix truncated JSON array by finding last closed object
+            last_brace = text.rfind("}")
+            if last_brace != -1:
+                truncated = text[:last_brace+1] + "]"
+                try:
+                    parsed = json.loads(truncated)
+                except Exception:
+                    print(f"[compliance_llm] Failed to parse LLM output: {text[:200]}")
+                    return []
+            else:
+                print(f"[compliance_llm] Failed to parse LLM output: {text[:200]}")
+                return []
 
         if not isinstance(parsed, list):
             return []
+
 
         by_index = {}
         for item in parsed:
