@@ -658,22 +658,34 @@ class DashboardHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length)
             try:
-                payload = json.loads(body.decode("utf-8"))
+                payload = json.loads(body.decode("utf-8")) if body else {}
                 filename = payload.get("filename", "")
+
+                log(f"\n==================== [API REQUEST] POST {path} ====================")
+                log(f"  Target File: {filename}")
 
                 handler_fn = API_ROUTES[path]
                 result = handler_fn(self, filename)
+
+                formatted_json = json.dumps(result, ensure_ascii=False, indent=2)
+                log(f"\n[API RESPONSE] POST {path}:\n{formatted_json[:2500]}")
+                if len(formatted_json) > 2500:
+                    log(f"... [truncated {len(formatted_json) - 2500} additional characters]")
+                log("===================================================================\n")
+
                 _send_json(self, result)
             except FileNotFoundError as e:
+                log(f"  [API 404 ERROR] {path}: {e}")
                 _send_json(self, {"error": str(e)}, 404)
             except Exception as e:
                 import traceback
-                log(f"  ERROR: {e}")
+                log(f"  [API 500 ERROR] {path}: {e}")
                 traceback.print_exc()
                 _send_json(self, {"error": str(e)}, 500)
             return
 
         self.send_error(404, "Unknown endpoint")
+
 
 
 class ReusableTCPServer(socketserver.ThreadingTCPServer):
