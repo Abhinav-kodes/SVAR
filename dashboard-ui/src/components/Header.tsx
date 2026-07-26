@@ -13,7 +13,7 @@ export const Header: React.FC<HeaderProps> = ({ activeFile, callData }) => {
 
   return (
     <header
-      className="flex items-center justify-between px-7 py-4 border-b"
+      className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 sm:px-7 py-3 sm:py-4 gap-2.5 sm:gap-0 border-b"
       style={{ background: 'var(--surface-1)', borderColor: 'var(--border)' }}
     >
       <div className="flex items-center gap-2 text-[13px]" style={{ color: 'var(--text-secondary)' }}>

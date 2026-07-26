@@ -45,3 +45,8 @@ Thumbs.db
 
 # Diarization cache / temp data
 diarization/change_detector_data/
+
+# Frontend Node dependencies
+dashboard-ui/node_modules/
+dashboard-ui/dist/
+

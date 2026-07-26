@@ -151,7 +151,7 @@ export const App: React.FC = () => {
         <Header activeFile={activeFile} callData={callData} />
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto" style={{ padding: '26px 28px 90px', maxWidth: '1240px' }}>
+        <main className="flex-1 overflow-y-auto w-full max-w-[1240px] mx-auto px-4 sm:px-7 py-6 pb-24">
           <ErrorBoundary key={activeTab}>
             {activeTab === 'summary' && <SummaryTab data={callData} />}
             {activeTab === 'denoising' && <DenoisingTab data={callData} activeFile={activeFile} />}

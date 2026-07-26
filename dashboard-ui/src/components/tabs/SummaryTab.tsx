@@ -85,7 +85,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({ data }) => {
       )}
 
       {/* Two-column: Gauge + Narrative */}
-      <div className="grid gap-5" style={{ gridTemplateColumns: '400px 1fr' }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] xl:grid-cols-[400px_1fr] gap-5">
         {/* Left: Quality Score Gauge */}
         <div className="card">
           <div className="flex items-start justify-between mb-0.5">
