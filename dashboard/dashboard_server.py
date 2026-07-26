@@ -417,24 +417,18 @@ def _run_pipeline(filename):
 
             _timed_stage(filename, "denoise", lambda: stage_denoise(filename))
             _timed_stage(filename, "diarize", lambda: stage_diarize(filename))
-
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                stt_f = pool.submit(_timed_stage, filename, "stt", lambda: stage_stt(filename))
-                ac_f = pool.submit(_timed_stage, filename, "acoustic", lambda: stage_acoustic(filename))
-                stt_f.result()
-                ac_f.result()
-
+            _timed_stage(filename, "stt", lambda: stage_stt(filename))
+            _timed_stage(filename, "acoustic", lambda: stage_acoustic(filename))
             _free_gpu("stt+acoustic done")
 
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                te_f = pool.submit(_timed_stage, filename, "text_emo", lambda: stage_text_emotion(filename))
-                co_f = pool.submit(_timed_stage, filename, "compliance", lambda: stage_audit(filename))
-                te_f.result()
-                co_f.result()
+            _timed_stage(filename, "text_emo", lambda: stage_text_emotion(filename))
+            _free_gpu("text_emo done")
 
+            _timed_stage(filename, "compliance", lambda: stage_audit(filename))
             _timed_stage(filename, "fusion", lambda: stage_fusion(filename))
             _timed_stage(filename, "qa", lambda: stage_qa(filename))
             _timed_stage(filename, "crm", lambda: stage_crm(filename))
+
 
             total = round(time.time() - t0, 1)
             c["processing_time_s"] = total
