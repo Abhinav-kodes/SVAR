@@ -5,7 +5,6 @@ import {
   Loader2,
   LayoutDashboard,
   Volume2,
-  Users,
   FileText,
   Smile,
   ShieldAlert,
@@ -30,8 +29,7 @@ const TABS: Array<{ id: TabId; label: string; icon: React.FC<{ className?: strin
   { id: 'qascore', label: 'Quality review', icon: Award },
   { id: 'crm', label: 'CRM note', icon: FileSpreadsheet },
   { id: 'transcript', label: 'Transcript', icon: FileText },
-  { id: 'diarization', label: 'Speaker identification', icon: Users },
-  { id: 'emotion', label: 'Sentiment by turn', icon: Smile },
+  { id: 'emotion', label: 'Emotion & sentiment', icon: Smile },
   { id: 'denoising', label: 'Audio quality', icon: Volume2 },
 ];
 
@@ -77,7 +75,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </div>
 
-        {/* Restrained Primary Action Button */}
+        {/* Primary Action Button */}
         <button
           onClick={() => onRunAnalysis(activeFile)}
           disabled={isRunning}

@@ -4,8 +4,8 @@ import { Sidebar } from './components/Sidebar';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
 import { SummaryTab } from './components/tabs/SummaryTab';
 import { DenoisingTab } from './components/tabs/DenoisingTab';
-import { DiarizationTab } from './components/tabs/DiarizationTab';
 import { TranscriptTab } from './components/tabs/TranscriptTab';
+
 import { EmotionTab } from './components/tabs/EmotionTab';
 import { ComplianceTab } from './components/tabs/ComplianceTab';
 import { QAScoreTab } from './components/tabs/QAScoreTab';
@@ -153,19 +153,17 @@ export const App: React.FC = () => {
           <ErrorBoundary key={activeTab}>
             {activeTab === 'summary' && <SummaryTab data={callData} />}
             {activeTab === 'denoising' && <DenoisingTab data={callData} activeFile={activeFile} />}
-            {activeTab === 'diarization' && (
-              <DiarizationTab data={callData} onSeekAudio={handleSeekAudio} currentTime={currentTime} />
-            )}
             {activeTab === 'transcript' && (
               <TranscriptTab data={callData} onSeekAudio={handleSeekAudio} currentTime={currentTime} />
             )}
-            {activeTab === 'emotion' && <EmotionTab data={callData} />}
+            {activeTab === 'emotion' && <EmotionTab data={callData} onSeekAudio={handleSeekAudio} />}
             {activeTab === 'compliance' && (
               <ComplianceTab data={callData} onSeekAudio={handleSeekAudio} />
             )}
             {activeTab === 'qascore' && <QAScoreTab data={callData} />}
             {activeTab === 'crm' && <CRMTab data={callData} />}
           </ErrorBoundary>
+
         </main>
       </div>
 
