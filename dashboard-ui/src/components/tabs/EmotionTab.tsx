@@ -1,8 +1,6 @@
 import React from 'react';
 import type { CallData } from '../../types/dashboard';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Play, Smile, Frown, Meh } from 'lucide-react';
-
 
 interface EmotionTabProps {
   data: CallData;
@@ -33,24 +31,6 @@ export const EmotionTab: React.FC<EmotionTabProps> = ({ data, onSeekAudio }) => 
 
   const dominant = negCount > posCount && negCount > neuCount ? 'Negative' : posCount > negCount ? 'Positive' : 'Neutral';
 
-  // Build sentiment trend chart
-  const chartData = segments.map((seg, idx) => {
-    const fusionItem = fusion[idx];
-    const sentiment = fusionItem?.sentiment || seg.sentiment || 'neutral';
-    const confidence = fusionItem?.confidence || seg.confidence || 0.7;
-
-    const sentimentVal = sentiment === 'positive' ? 1.0 : sentiment === 'negative' ? -1.0 : 0.0;
-
-    return {
-      turn: idx + 1,
-      speaker: seg.speaker,
-      time: `${seg.start_time_s.toFixed(0)}s`,
-      sentiment: sentimentVal,
-      confidence: Math.round(confidence * 100),
-      text: seg.text || '',
-    };
-  });
-
   return (
     <div className="space-y-6">
       {/* Overview Grid */}
@@ -63,7 +43,7 @@ export const EmotionTab: React.FC<EmotionTabProps> = ({ data, onSeekAudio }) => 
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Multimodal fusion combining DistilRoBERTa Hindi text emotion with acoustic speech prosody.
+            Turn-by-turn text emotion and acoustic speech prosody evaluation.
           </p>
         </div>
 
@@ -83,36 +63,16 @@ export const EmotionTab: React.FC<EmotionTabProps> = ({ data, onSeekAudio }) => 
         </div>
       </div>
 
-      {/* Sentiment Progression Timeline Chart */}
-      <div className="panel p-5 space-y-3">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Sentiment progression timeline</h3>
-
-        <div className="h-52 pt-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <XAxis dataKey="time" stroke="#475569" tick={{ fill: '#91a0b5', fontSize: 11 }} />
-              <YAxis domain={[-1.2, 1.2]} ticks={[-1, 0, 1]} tickFormatter={(val) => (val === 1 ? 'Positive' : val === -1 ? 'Negative' : 'Neutral')} stroke="#475569" tick={{ fill: '#91a0b5', fontSize: 11 }} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#121a26', borderColor: '#263245', borderRadius: '6px', fontSize: '12px' }}
-                formatter={(val: any) => [val === 1 ? 'Positive' : val === -1 ? 'Negative' : 'Neutral', 'Sentiment']}
-              />
-              <Area type="monotone" dataKey="sentiment" stroke="#0284c7" fill="#0284c7" fillOpacity={0.15} strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
       {/* Detailed Turn-by-Turn Sentiment List */}
       <div className="panel p-5 space-y-3">
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Turn-by-turn sentiment details</h3>
 
-        <div className="space-y-2 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
+        <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
           {segments.map((seg, idx) => {
             const isAgent = (seg.speaker || '').toLowerCase().includes('agent');
             const fItem = fusion[idx];
             const sentiment = fItem?.sentiment || seg.sentiment || 'neutral';
             const emotion = fItem?.emotion || seg.emotion || 'neutral';
-            const confidence = fItem?.confidence || seg.confidence || 0.7;
 
             const isNegative = sentiment === 'negative' || emotion === 'anger' || emotion === 'sadness';
 
@@ -146,7 +106,6 @@ export const EmotionTab: React.FC<EmotionTabProps> = ({ data, onSeekAudio }) => 
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <div className="text-right text-[11px] text-slate-400">
                     <div>Tone: <strong className="capitalize text-slate-200">{sentiment}</strong></div>
-                    <div>Confidence: <strong className="text-emerald-400">{(confidence * 100).toFixed(0)}%</strong></div>
                   </div>
 
                   <button
