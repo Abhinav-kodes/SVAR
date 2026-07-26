@@ -1,25 +1,24 @@
 import React from 'react';
 import type { CallData } from '../../types/dashboard';
-import { Play, Smile, Frown, Meh } from 'lucide-react';
+
 
 interface EmotionTabProps {
   data: CallData;
   onSeekAudio?: (timeSeconds: number) => void;
 }
 
-export const EmotionTab: React.FC<EmotionTabProps> = ({ data, onSeekAudio }) => {
+export const EmotionTab: React.FC<EmotionTabProps> = ({ data }) => {
   const fusion = data?.fusion || [];
   const segments = data?.segments || [];
 
   if (segments.length === 0) {
     return (
-      <div className="panel p-8 text-center text-slate-400 text-xs">
+      <div className="card text-center text-[13px]" style={{ color: 'var(--text-secondary)', padding: '40px' }}>
         No emotion or sentiment analysis data available.
       </div>
     );
   }
 
-  // Count customer sentiments
   const customerSentiments = fusion.map((f, idx) => {
     const isCustomer = (segments[idx]?.speaker || '').toLowerCase().includes('customer');
     return isCustomer ? f.sentiment : null;
@@ -32,90 +31,74 @@ export const EmotionTab: React.FC<EmotionTabProps> = ({ data, onSeekAudio }) => 
   const dominant = negCount > posCount && negCount > neuCount ? 'Negative' : posCount > negCount ? 'Positive' : 'Neutral';
 
   return (
-    <div className="space-y-6">
-      {/* Overview Grid */}
-      <div className="panel p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="flex flex-col gap-5">
+      <div className="card">
+        <div className="flex items-start justify-between gap-5">
+          <div>
+            <h2 className="text-[15.5px] font-semibold">
+              Emotion & sentiment analysis
+              <span className={`tag ml-2 ${dominant === 'Negative' ? 'tag-negative' : dominant === 'Positive' ? 'tag-positive' : 'tag-neutral'}`}>
+                Dominant tone: {dominant}
+              </span>
+            </h2>
+            <div className="text-[12.5px] mt-1" style={{ color: 'var(--text-secondary)' }}>
+              Turn-by-turn text emotion and acoustic speech prosody evaluation.
+            </div>
+          </div>
+
+          <div className="flex gap-5 flex-shrink-0">
+            <div className="text-right">
+              <span className="num text-[18px] font-semibold block" style={{ color: 'var(--red-strong)' }}>{negCount}</span>
+              <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>NEGATIVE</span>
+            </div>
+            <div className="text-right">
+              <span className="num text-[18px] font-semibold block">{neuCount}</span>
+              <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>NEUTRAL</span>
+            </div>
+            <div className="text-right">
+              <span className="num text-[18px] font-semibold block" style={{ color: 'var(--green)' }}>{posCount}</span>
+              <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>POSITIVE</span>
+            </div>
+          </div>
+        </div>
+        <div className="tick-divider" />
+
+        {/* Sentiment Turn Rows */}
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold text-white">Emotion & sentiment analysis</h2>
-            <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${dominant === 'Negative' ? 'badge-danger' : dominant === 'Positive' ? 'badge-success' : 'badge-neutral'}`}>
-              Dominant tone: {dominant}
-            </span>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Turn-by-turn text emotion and acoustic speech prosody evaluation.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-6 text-xs text-slate-400">
-          <div className="flex items-center gap-1.5">
-            <Frown className="w-4 h-4 text-rose-400" />
-            <span>Negative: <strong className="text-slate-100">{negCount}</strong></span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Meh className="w-4 h-4 text-slate-400" />
-            <span>Neutral: <strong className="text-slate-100">{neuCount}</strong></span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Smile className="w-4 h-4 text-emerald-400" />
-            <span>Positive: <strong className="text-slate-100">{posCount}</strong></span>
-          </div>
-        </div>
-      </div>
-
-      {/* Detailed Turn-by-Turn Sentiment List */}
-      <div className="panel p-5 space-y-3">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Turn-by-turn sentiment details</h3>
-
-        <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
           {segments.map((seg, idx) => {
             const isAgent = (seg.speaker || '').toLowerCase().includes('agent');
             const fItem = fusion[idx];
             const sentiment = fItem?.sentiment || seg.sentiment || 'neutral';
             const emotion = fItem?.emotion || seg.emotion || 'neutral';
+            const isNegative = sentiment === 'negative' || emotion === 'anger' || emotion === 'sadness' || emotion === 'disgust';
 
-            const isNegative = sentiment === 'negative' || emotion === 'anger' || emotion === 'sadness';
+            const emotionTagClass = isNegative ? 'tag-negative' : emotion === 'joy' ? 'tag-positive' : 'tag-neutral';
+            const toneColor = sentiment === 'negative' ? 'var(--red-strong)' : sentiment === 'positive' ? 'var(--green)' : 'var(--text-secondary)';
 
             return (
               <div
                 key={idx}
-                className={`p-3.5 rounded-md border transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
-                  isNegative
-                    ? 'bg-rose-500/5 border-rose-500/20'
-                    : 'bg-slate-900/40 border-slate-800'
-                }`}
+                className={`trow ${isNegative ? 'trow-hi' : ''}`}
               >
-                <div className="space-y-1 truncate pr-2">
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${isAgent ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}`}>
-                      {isAgent ? 'Agent' : 'Customer'}
-                    </span>
-                    <span className="text-[11px] font-mono text-slate-500">
-                      @ {seg.start_time_s.toFixed(1)}s
-                    </span>
+                <span className={`tag ${isAgent ? 'tag-agent' : 'tag-customer'}`}>
+                  {isAgent ? 'Agent' : 'Customer'}
+                </span>
 
-                    {/* Emotion Tag */}
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${isNegative ? 'badge-danger' : 'badge-neutral'}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="num text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+                      {seg.start_time_s.toFixed(1)}s
+                    </span>
+                    <span className={`tag ${emotionTagClass}`} style={{ textTransform: 'capitalize' }}>
                       {emotion}
                     </span>
                   </div>
-
-                  <p className="text-xs text-slate-200 truncate">{seg.text || '(Speech turn)'}</p>
+                  <div className="text-[13.5px] leading-relaxed">{seg.text || '(Speech turn)'}</div>
                 </div>
 
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <div className="text-right text-[11px] text-slate-400">
-                    <div>Tone: <strong className="capitalize text-slate-200">{sentiment}</strong></div>
-                  </div>
-
-                  <button
-                    onClick={() => onSeekAudio?.(seg.start_time_s)}
-                    className="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1.5"
-                    title="Play audio from this turn"
-                  >
-                    <Play className="w-3 h-3 fill-current text-sky-400" />
-                    <span>Listen</span>
-                  </button>
+                <div className="text-[11px] flex-shrink-0 text-right mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                  Tone<br />
+                  <b className="font-medium capitalize" style={{ color: toneColor }}>{sentiment}</b>
                 </div>
               </div>
             );

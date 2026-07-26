@@ -131,25 +131,25 @@ export const App: React.FC = () => {
   const audioUrl = activeFile ? `/audio/${activeFile}` : '';
 
   return (
-    <div className="min-h-screen bg-dark-900 text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-white">
-      {/* Header */}
-      <Header activeFile={activeFile} callData={callData} />
+    <div className="flex min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text-primary)', fontFamily: 'var(--font-ui)' }}>
+      {/* Sidebar */}
+      <Sidebar
+        files={files}
+        activeFile={activeFile}
+        onSelectFile={handleSelectFile}
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        onRunAnalysis={handleStartAnalysis}
+        progress={progress}
+      />
 
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          files={files}
-          activeFile={activeFile}
-          onSelectFile={handleSelectFile}
-          activeTab={activeTab}
-          onSelectTab={setActiveTab}
-          onRunAnalysis={handleStartAnalysis}
-          progress={progress}
-        />
+      {/* Main Area */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        {/* Topbar */}
+        <Header activeFile={activeFile} callData={callData} />
 
-
-
-        {/* Main Content Workspace */}
-        <main className="flex-1 p-6 overflow-y-auto max-w-7xl mx-auto w-full">
+        {/* Content */}
+        <main className="flex-1 overflow-y-auto" style={{ padding: '26px 28px 90px', maxWidth: '1240px' }}>
           <ErrorBoundary key={activeTab}>
             {activeTab === 'summary' && <SummaryTab data={callData} />}
             {activeTab === 'denoising' && <DenoisingTab data={callData} activeFile={activeFile} />}
@@ -163,9 +163,9 @@ export const App: React.FC = () => {
             {activeTab === 'qascore' && <QAScoreTab data={callData} />}
             {activeTab === 'crm' && <CRMTab data={callData} />}
           </ErrorBoundary>
-
         </main>
       </div>
+
 
       {/* Floating Bottom Audio Player */}
       <AudioPlayerBar
