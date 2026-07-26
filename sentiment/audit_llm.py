@@ -149,7 +149,19 @@ Output ONLY raw valid JSON. No markdown backticks, no text outside the JSON.
                         parsed = json.loads(raw)
                         if isinstance(parsed, dict) and "compliance" in parsed and "qa" in parsed and "crm_note" in parsed:
                             parsed["unified_llm"] = True
+                            # Map original segment start/end timestamps to compliance segment_results
+                            comp = parsed.get("compliance", {})
+                            s_results = comp.get("segment_results", [])
+                            for sr in s_results:
+                                idx = sr.get("index")
+                                if idx is not None and 0 <= idx < len(segments):
+                                    orig_seg = segments[idx]
+                                    sr["start"] = orig_seg.get("start_time_s", orig_seg.get("start", 0.0))
+                                    sr["end"] = orig_seg.get("end_time_s", orig_seg.get("end", 0.0))
+                                    sr["start_time_s"] = sr["start"]
+                                    sr["end_time_s"] = sr["end"]
                             return parsed
+
                 except Exception as e:
                     last_err = e
                     if "429" in str(e):

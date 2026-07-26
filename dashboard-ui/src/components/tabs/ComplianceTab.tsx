@@ -68,7 +68,11 @@ export const ComplianceTab: React.FC<ComplianceTabProps> = ({ data, onSeekAudio 
             {segment_results.map((sr, sIdx) => {
               if (!sr || sr.violation_count === 0 || !Array.isArray(sr.flags)) return null;
 
-              const startTime = (sr as any).start ?? (sr as any).start_time_s ?? 0;
+              const segIdx = (sr as any).index ?? sIdx;
+              const matchingSeg = data?.segments?.[segIdx] || data?.segments?.[sIdx];
+              const rawStart = (sr as any).start ?? (sr as any).start_time_s ?? matchingSeg?.start_time_s ?? 0;
+              const startTime = typeof rawStart === 'number' ? rawStart : parseFloat(rawStart) || 0;
+
 
               return sr.flags.map((flag, fIdx) => {
                 const parts = flag.split(':');
