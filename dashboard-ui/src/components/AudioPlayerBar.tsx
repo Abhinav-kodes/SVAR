@@ -19,11 +19,15 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const [isMuted, setIsMuted] = useState(false);
 
-  // Sync seek requests
+  // Sync seek requests & auto-play when seeking from evidence/transcript listen buttons
   useEffect(() => {
-    if (audioRef.current && typeof seekTime === 'number') {
+    if (audioRef.current && typeof seekTime === 'number' && !isNaN(seekTime)) {
       audioRef.current.currentTime = seekTime;
       setCurrentTime(seekTime);
+      audioRef.current
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch((err) => console.error('Audio play error on seek:', err));
     }
   }, [seekTime]);
 
@@ -33,8 +37,10 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
-      audioRef.current.play().catch((err) => console.error('Audio play failed:', err));
-      setIsPlaying(true);
+      audioRef.current
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch((err) => console.error('Audio play failed:', err));
     }
   };
 
