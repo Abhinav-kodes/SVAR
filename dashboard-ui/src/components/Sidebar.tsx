@@ -1,128 +1,111 @@
 import React from 'react';
-import { 
-  BarChart3, VolumeX, Users, FileText, MessageSquare, 
-  Scale, Trophy, ClipboardList, Play, Loader2, CheckCircle2, FileAudio
+import {
+  FileAudio,
+  Play,
+  Loader2,
+  LayoutDashboard,
+  Volume2,
+  Users,
+  FileText,
+  Smile,
+  ShieldAlert,
+  Award,
+  FileSpreadsheet,
 } from 'lucide-react';
 import type { TabId, ProgressState } from '../types/dashboard';
 
 interface SidebarProps {
   files: string[];
   activeFile: string;
-  onSelectFile: (filename: string) => void;
-  onStartAnalysis: () => void;
-  isAnalyzing: boolean;
+  onSelectFile: (file: string) => void;
   activeTab: TabId;
   onSelectTab: (tab: TabId) => void;
+  onRunAnalysis: (file: string) => void;
   progress: ProgressState | null;
-  hasDataForTab: (tabId: TabId) => boolean;
 }
 
-const TABS: Array<{ id: TabId; label: string; icon: React.ReactNode }> = [
-  { id: 'summary', label: 'Summary', icon: <BarChart3 className="w-4 h-4" /> },
-  { id: 'denoising', label: 'Denoising', icon: <VolumeX className="w-4 h-4" /> },
-  { id: 'diarization', label: 'Diarization', icon: <Users className="w-4 h-4" /> },
-  { id: 'transcript', label: 'Transcript', icon: <FileText className="w-4 h-4" /> },
-  { id: 'emotion', label: 'Emotion & Sentiment', icon: <MessageSquare className="w-4 h-4" /> },
-  { id: 'compliance', label: 'Compliance', icon: <Scale className="w-4 h-4" /> },
-  { id: 'qascore', label: 'QA Scorecard', icon: <Trophy className="w-4 h-4" /> },
-  { id: 'crm', label: 'CRM Note', icon: <ClipboardList className="w-4 h-4" /> },
+const TABS: Array<{ id: TabId; label: string; icon: React.FC<{ className?: string }> }> = [
+  { id: 'summary', label: 'Call overview', icon: LayoutDashboard },
+  { id: 'compliance', label: 'Compliance & policy', icon: ShieldAlert },
+  { id: 'qascore', label: 'Quality review', icon: Award },
+  { id: 'crm', label: 'CRM note', icon: FileSpreadsheet },
+  { id: 'transcript', label: 'Transcript', icon: FileText },
+  { id: 'diarization', label: 'Speaker identification', icon: Users },
+  { id: 'emotion', label: 'Sentiment by turn', icon: Smile },
+  { id: 'denoising', label: 'Audio quality', icon: Volume2 },
 ];
-
-const STAGE_LABELS: Record<string, string> = {
-  denoise: 'Audio Denoising',
-  diarize: 'Diarization',
-  stt: 'Speech-to-Text',
-  acoustic: 'Acoustic Emotion',
-  text_emo: 'Text Emotion',
-  compliance: 'Compliance Check',
-  fusion: 'Multimodal Fusion',
-  qa: 'QA Scoring',
-  crm: 'CRM Generation',
-};
 
 export const Sidebar: React.FC<SidebarProps> = ({
   files,
   activeFile,
   onSelectFile,
-  onStartAnalysis,
-  isAnalyzing,
   activeTab,
   onSelectTab,
+  onRunAnalysis,
   progress,
-  hasDataForTab,
 }) => {
-  return (
-    <aside className="w-72 min-w-[18rem] border-r border-white/10 bg-dark-800/80 backdrop-blur-xl flex flex-col h-[calc(100vh-65px)] overflow-y-auto">
-      {/* Sample Calls Section */}
-      <div className="p-4 border-b border-white/10 space-y-3">
-        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-          <span>Sample Audio Recordings</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-slate-300 font-mono">
-            {files.length} Files
-          </span>
-        </h2>
+  const isRunning = progress?.status === 'running';
 
-        <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
-          {files.length === 0 ? (
-            <div className="text-xs text-slate-500 py-2">Loading call files...</div>
-          ) : (
-            files.map((file) => {
-              const ext = file.split('.').pop()?.toUpperCase() || 'WAV';
-              const isActive = file === activeFile;
-              return (
-                <button
-                  key={file}
-                  onClick={() => onSelectFile(file)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between transition-all duration-150 border ${
-                    isActive
-                      ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-300 shadow-glow-cyan font-medium'
-                      : 'bg-white/5 border-transparent text-slate-300 hover:bg-white/10 hover:border-white/10'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 truncate pr-2">
-                    <FileAudio className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-cyan-400' : 'text-slate-400'}`} />
-                    <span className="truncate">{file}</span>
-                  </div>
-                  <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-white/10 text-slate-400 flex-shrink-0">
-                    {ext}
-                  </span>
-                </button>
-              );
-            })
-          )}
+  return (
+    <aside className="w-64 bg-[#121a26] border-r border-[#263245] flex flex-col h-[calc(100vh-53px)] overflow-y-auto">
+      {/* Call Selector Section */}
+      <div className="p-4 border-b border-[#263245] space-y-3">
+        <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
+          Select Recording
+        </label>
+
+        <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+          {files.map((file) => {
+            const isSelected = file === activeFile;
+            return (
+              <button
+                key={file}
+                onClick={() => onSelectFile(file)}
+                className={`w-full text-left px-3 py-2 rounded-md text-xs font-medium flex items-center justify-between transition-colors ${
+                  isSelected
+                    ? 'bg-sky-600/20 text-sky-300 border border-sky-500/30'
+                    : 'text-slate-300 hover:bg-slate-800/60'
+                }`}
+              >
+                <span className="truncate flex items-center gap-2">
+                  <FileAudio className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                  <span className="truncate">{file}</span>
+                </span>
+                {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Analyze Button */}
+        {/* Restrained Primary Action Button */}
         <button
-          onClick={onStartAnalysis}
-          disabled={!activeFile || isAnalyzing}
-          className="w-full py-2.5 px-4 rounded-xl font-semibold text-xs text-white bg-gradient-to-r from-cyan-500 via-indigo-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 shadow-glow-cyan disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-200 flex items-center justify-center gap-2"
+          onClick={() => onRunAnalysis(activeFile)}
+          disabled={isRunning}
+          className="w-full btn-primary py-2 px-3 text-xs flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
         >
-          {isAnalyzing ? (
+          {isRunning ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin text-white" />
-              <span>Executing Pipeline...</span>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Analyzing call...</span>
             </>
           ) : (
             <>
-              <Play className="w-4 h-4 fill-white" />
-              <span>Run AI Analysis</span>
+              <Play className="w-3.5 h-3.5 fill-current" />
+              <span>Analyze call</span>
             </>
           )}
         </button>
 
-        {/* Live Progress Bar */}
-        {progress && (progress.status === 'running' || isAnalyzing) && (
-          <div className="mt-3 p-3 rounded-xl bg-white/5 border border-white/10 space-y-2">
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-300 font-medium truncate">
-                {STAGE_LABELS[progress.current_stage] || progress.current_stage || 'Processing...'}
-              </span>
-              <span className="text-cyan-400 font-mono font-bold">{progress.percent}%</span>
+        {/* Pipeline Progress Feedback */}
+        {isRunning && progress && (
+          <div className="space-y-1.5 pt-1">
+            <div className="flex justify-between text-[11px] text-slate-400">
+              <span className="capitalize">{progress.current_stage || 'Processing'}</span>
+              <span>{progress.percent}%</span>
             </div>
-            <div className="w-full h-1.5 bg-dark-900 rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-cyan-400 via-purple-400 to-emerald-400 transition-all duration-300 rounded-full"
+                className="h-full bg-sky-500 transition-all duration-300"
                 style={{ width: `${progress.percent}%` }}
               />
             </div>
@@ -130,44 +113,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      {/* Pipeline Navigation Tabs */}
-      <div className="p-3 flex-1 flex flex-col space-y-1">
-        <h2 className="px-2 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+      {/* Operator Navigation Tabs */}
+      <nav className="p-3 space-y-1 flex-1">
+        <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
           Analysis Views
-        </h2>
-        <nav className="space-y-1">
-          {TABS.map((tab) => {
-            const isActive = activeTab === tab.id;
-            const hasData = hasDataForTab(tab.id);
+        </div>
 
-            return (
-              <button
-                key={tab.id}
-                onClick={() => onSelectTab(tab.id)}
-                disabled={isAnalyzing && tab.id !== 'summary'}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-150 ${
-                  isActive
-                    ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/40 shadow-sm font-semibold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'
-                } ${isAnalyzing && tab.id !== 'summary' ? 'opacity-40 cursor-not-allowed' : ''}`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className={isActive ? 'text-cyan-400' : 'text-slate-400'}>
-                    {tab.icon}
-                  </span>
-                  <span>{tab.label}</span>
-                </div>
-
-                {hasData && (
-                  <span className="flex items-center text-emerald-400">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
+        {TABS.map(({ id, label, icon: Icon }) => {
+          const isActive = activeTab === id;
+          return (
+            <button
+              key={id}
+              onClick={() => onSelectTab(id)}
+              className={`w-full text-left px-3 py-2 rounded-md text-xs font-medium flex items-center gap-2.5 transition-colors ${
+                isActive
+                  ? 'bg-sky-500/15 text-sky-300 font-semibold border-l-2 border-sky-400'
+                  : 'text-slate-300 hover:bg-slate-800/40 hover:text-slate-100'
+              }`}
+            >
+              <Icon className={`w-4 h-4 ${isActive ? 'text-sky-400' : 'text-slate-400'}`} />
+              <span>{label}</span>
+            </button>
+          );
+        })}
+      </nav>
     </aside>
   );
 };

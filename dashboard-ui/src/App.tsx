@@ -14,17 +14,6 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import type { TabId, CallData, ProgressState } from './types/dashboard';
 
 
-const TAB_KEYS: Record<TabId, (keyof CallData)[]> = {
-  summary: ['duration_s', 'processing_time_s', 'segments', 'talk_ratio', 'denoise_metrics', 'qa', 'compliance', 'fusion'],
-  denoising: ['denoise_metrics'],
-  diarization: ['segments', 'talk_ratio', 'role_resolution'],
-  transcript: ['segments'],
-  emotion: ['segments', 'fusion'],
-  compliance: ['compliance'],
-  qascore: ['qa'],
-  crm: ['crm_note', 'qa', 'compliance', 'fusion'],
-};
-
 export const App: React.FC = () => {
   const [files, setFiles] = useState<string[]>([]);
   const [activeFile, setActiveFile] = useState<string>('');
@@ -133,16 +122,7 @@ export const App: React.FC = () => {
     }
   };
 
-  const hasDataForTab = (tabId: TabId) => {
-    const keys = TAB_KEYS[tabId] || [];
-    return keys.some((k) => {
-      const val = callData[k];
-      if (val == null) return false;
-      if (Array.isArray(val)) return val.length > 0;
-      if (typeof val === 'object') return Object.keys(val).length > 0;
-      return true;
-    });
-  };
+
 
   const handleSeekAudio = (timeSec: number) => {
     setSeekTime(timeSec);
@@ -153,26 +133,20 @@ export const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-dark-900 text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-white">
       {/* Header */}
-      <Header
-        activeFile={activeFile}
-        processingTime={callData.processing_time_s}
-        isAnalyzing={isAnalyzing}
-      />
+      <Header activeFile={activeFile} callData={callData} />
 
-      {/* Main Layout Container */}
-      <div className="flex flex-1 overflow-hidden pb-16">
-        {/* Sidebar */}
+      <div className="flex flex-1 overflow-hidden">
         <Sidebar
           files={files}
           activeFile={activeFile}
           onSelectFile={handleSelectFile}
-          onStartAnalysis={handleStartAnalysis}
-          isAnalyzing={isAnalyzing}
           activeTab={activeTab}
           onSelectTab={setActiveTab}
+          onRunAnalysis={handleStartAnalysis}
           progress={progress}
-          hasDataForTab={hasDataForTab}
         />
+
+
 
         {/* Main Content Workspace */}
         <main className="flex-1 p-6 overflow-y-auto max-w-7xl mx-auto w-full">

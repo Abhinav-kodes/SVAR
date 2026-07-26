@@ -1,222 +1,146 @@
 import React from 'react';
 import type { CallData } from '../../types/dashboard';
-import { BarChart3, Clock, Zap, ShieldCheck, ShieldAlert, Award, Layers, Users } from 'lucide-react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
+import { ShieldAlert, ShieldCheck, AlertCircle } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface SummaryTabProps {
   data: CallData;
 }
 
 export const SummaryTab: React.FC<SummaryTabProps> = ({ data }) => {
-  if (!data || !data.segments || data.segments.length === 0) {
-    return (
-      <div className="glass-card p-12 rounded-2xl text-center flex flex-col items-center justify-center min-h-[350px]">
-        <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 mb-4">
-          <BarChart3 className="w-8 h-8" />
-        </div>
-        <h3 className="font-display text-lg font-bold text-slate-200">No Call Analysis Data</h3>
-        <p className="text-slate-400 text-xs max-w-sm mt-1">
-          Select a sample recording from the sidebar and click <strong className="text-cyan-400">Run AI Analysis</strong> to view real-time intelligence metrics.
-        </p>
-      </div>
-    );
-  }
+  const qa = data?.qa;
+  const compliance = data?.compliance;
+  const crm = data?.crm_note;
+  const talkRatio = data?.talk_ratio;
 
-  const { duration_s, processing_time_s, segments, talk_ratio, denoise_metrics, qa, compliance } = data;
+  const totalViolations = compliance?.total_violations ?? 0;
+  const isCompliant = compliance?.compliant ?? true;
+  const qaScore = qa?.qa_score ?? 0;
+  const grade = qa?.grade ?? 'N/A';
 
-  const snrBefore = denoise_metrics?.snr_before_db ?? 0;
-  const snrAfter = denoise_metrics?.snr_after_db ?? 0;
-  const snrGain = snrAfter - snrBefore;
-
-  const qaComponents = qa?.components || {};
+  // Quality component chart data
+  const components = qa?.components || {};
   const chartData = [
-    { name: 'Sentiment', score: qaComponents.customer_sentiment || 0, color: '#06b6d4' },
-    { name: 'Compliance', score: qaComponents.compliance || 0, color: '#10b981' },
-    { name: 'Stability', score: qaComponents.agent_stability || 0, color: '#f59e0b' },
-    { name: 'Intent', score: qaComponents.intent_resolution || 0, color: '#a855f7' },
-    { name: 'Talk Ratio', score: qaComponents.talk_ratio || 0, color: '#ec4899' },
+    { name: 'Compliance', score: components.compliance ?? 100 },
+    { name: 'Sentiment', score: components.customer_sentiment ?? 70 },
+    { name: 'Agent tone', score: components.agent_stability ?? 80 },
+    { name: 'Resolution', score: components.intent_resolution ?? 75 },
+    { name: 'Talk ratio', score: components.talk_ratio ?? 85 },
   ];
 
-  const gradeColors: Record<string, string> = {
-    A: '#10b981',
-    B: '#06b6d4',
-    C: '#f59e0b',
-    D: '#ef4444',
-    F: '#ef4444',
-  };
-  const gradeColor = gradeColors[qa?.grade || ''] || '#06b6d4';
-
   return (
-    <div className="space-y-6 animate-fadeIn">
-      {/* Stat Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="glass-card p-4 rounded-xl space-y-1">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Call Duration</span>
-            <Clock className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div className="font-display text-2xl font-bold text-white">
-            {duration_s ?? '--'} <span className="text-xs text-slate-400 font-normal">sec</span>
-          </div>
-        </div>
+    <div className="space-y-6">
+      {/* Risk Banner & Executive Status */}
+      <div className="panel p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          {totalViolations > 0 ? (
+            <div className="w-10 h-10 rounded-md bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center flex-shrink-0">
+              <ShieldAlert className="w-5 h-5" />
+            </div>
+          ) : (
+            <div className="w-10 h-10 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+          )}
 
-        <div className="glass-card p-4 rounded-xl space-y-1">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Pipeline Speed</span>
-            <Zap className="w-4 h-4 text-purple-400" />
-          </div>
-          <div className="font-display text-2xl font-bold text-purple-400">
-            {processing_time_s ?? '--'} <span className="text-xs text-slate-400 font-normal">sec</span>
-          </div>
-        </div>
-
-        <div className="glass-card p-4 rounded-xl space-y-1">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Diarized Turns</span>
-            <Layers className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="font-display text-2xl font-bold text-emerald-400">
-            {segments.length} <span className="text-xs text-slate-400 font-normal">segments</span>
-          </div>
-        </div>
-
-        <div className="glass-card p-4 rounded-xl space-y-1">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>SNR Gain</span>
-            <Award className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="font-display text-2xl font-bold text-amber-400">
-            +{snrGain > 0 ? snrGain.toFixed(1) : '0'} <span className="text-xs text-slate-400 font-normal">dB</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main QA Score & Chart Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* QA Grade Ring Card */}
-        <div className="glass-card p-6 rounded-2xl flex flex-col items-center justify-center text-center">
-          <h3 className="font-display text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">
-            Executive Quality Score
-          </h3>
-          <div className="relative w-36 h-36 flex items-center justify-center mb-3">
-            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
-              <circle
-                cx="60"
-                cy="60"
-                r="52"
-                fill="none"
-                stroke="rgba(255,255,255,0.06)"
-                strokeWidth="8"
-              />
-              <circle
-                cx="60"
-                cy="60"
-                r="52"
-                fill="none"
-                stroke={gradeColor}
-                strokeWidth="8"
-                strokeDasharray="326.7"
-                strokeDashoffset={326.7 * (1 - (qa?.qa_score || 0) / 100)}
-                strokeLinecap="round"
-                className="transition-all duration-1000 ease-out"
-              />
-            </svg>
-            <div className="absolute flex flex-col items-center">
-              <span className="font-display text-4xl font-extrabold" style={{ color: gradeColor }}>
-                {qa?.grade || '--'}
-              </span>
-              <span className="text-xs font-semibold text-slate-400 mt-0.5">
-                {qa?.qa_score ?? 0} / 100 pts
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-display text-base font-semibold text-white">
+                {totalViolations > 0 ? 'High risk call detected' : 'Standard compliant call'}
+              </h2>
+              <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${totalViolations > 0 ? 'badge-danger' : 'badge-success'}`}>
+                {isCompliant ? 'Compliant' : 'Non-compliant'}
               </span>
             </div>
-          </div>
-          <div className="text-xs text-slate-300 font-medium">
-            Overall Quality Grade
+            <p className="text-xs text-slate-400 mt-1">
+              {totalViolations > 0
+                ? `${totalViolations} policy violation(s) flagged during recording.`
+                : 'No regulatory or policy violations detected.'}
+            </p>
           </div>
         </div>
 
-        {/* Component Breakdown Chart */}
-        <div className="glass-card p-6 rounded-2xl lg:col-span-2 space-y-4">
-          <h3 className="font-display text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Evaluation Category Scores
-          </h3>
-          <div className="h-44 w-full">
+        {/* Quick Action Recommendation */}
+        {crm?.recommended_action && (
+          <div className="p-3 rounded-md bg-slate-900/60 border border-slate-800 text-xs text-slate-300 max-w-sm flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-sky-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <span className="font-semibold text-slate-200">Recommended action: </span>
+              {crm.recommended_action}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Metrics & Reasoning Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Quality Scorecard Summary */}
+        <div className="panel p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-[#263245] pb-3">
+            <h3 className="text-sm font-semibold text-white">Call quality review</h3>
+            <span className="text-xs text-slate-400">Grade <strong className="text-slate-100 font-bold">{grade}</strong></span>
+          </div>
+
+          <div className="flex items-baseline gap-3">
+            <div className="text-4xl font-bold font-display text-white">{qaScore.toFixed(0)}</div>
+            <div className="text-xs text-slate-400">/ 100 overall score</div>
+          </div>
+
+          {/* Component Scores Bar Chart */}
+          <div className="h-44 pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                <XAxis type="number" domain={[0, 100]} stroke="#64748b" fontSize={11} />
-                <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={11} width={80} />
+              <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
+                <XAxis type="number" domain={[0, 100]} hide />
+                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#91a0b5', fontSize: 11 }} width={75} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px' }}
-                  itemStyle={{ color: '#38bdf8' }}
+                  contentStyle={{ backgroundColor: '#121a26', borderColor: '#263245', borderRadius: '6px', fontSize: '12px' }}
+                  formatter={(val: any) => [`${val}/100`, 'Score']}
                 />
-                <Bar dataKey="score" radius={[0, 6, 6, 0]}>
+                <Bar dataKey="score" radius={[0, 4, 4, 0]} barSize={12}>
                   {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                    <Cell key={`cell-${index}`} fill={entry.score < 60 ? '#ef4444' : entry.score < 80 ? '#f59e0b' : '#0284c7'} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
-      </div>
 
-      {/* Speaker Talk Split & Compliance Pill */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="glass-card p-5 rounded-xl space-y-3">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            <span className="flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-cyan-400" />
-              Talk Time Distribution
-            </span>
-          </div>
+        {/* Middle Column: Executive Narrative Summary */}
+        <div className="panel p-5 space-y-3 lg:col-span-2 flex flex-col justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-white border-b border-[#263245] pb-3 mb-3">
+              Executive call narrative
+            </h3>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              {crm?.summary || 'Call analysis processing complete. Detailed transcript and turn details are available.'}
+            </p>
 
-          <div className="space-y-2">
-            <div className="flex justify-between text-xs">
-              <span className="text-cyan-400 font-medium">Agent ({talk_ratio?.agent_duration_s ?? 0}s)</span>
-              <span className="text-amber-400 font-medium">Customer ({talk_ratio?.customer_duration_s ?? 0}s)</span>
-            </div>
-            <div className="w-full h-3 bg-dark-900 rounded-full overflow-hidden flex">
-              <div
-                className="bg-cyan-500 h-full transition-all duration-500"
-                style={{ width: `${((talk_ratio?.agent_ratio ?? 0) * 100).toFixed(1)}%` }}
-              />
-              <div
-                className="bg-amber-500 h-full transition-all duration-500"
-                style={{ width: `${((talk_ratio?.customer_ratio ?? 0) * 100).toFixed(1)}%` }}
-              />
-            </div>
-            <div className="flex justify-between text-[11px] text-slate-400">
-              <span>{((talk_ratio?.agent_ratio ?? 0) * 100).toFixed(1)}% Agent</span>
-              <span>{((talk_ratio?.customer_ratio ?? 0) * 100).toFixed(1)}% Customer</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="glass-card p-5 rounded-xl space-y-3 flex flex-col justify-between">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Regulatory Compliance Status
-          </div>
-
-          <div className="flex items-center gap-3">
-            {compliance?.compliant ? (
-              <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 w-full">
-                <ShieldCheck className="w-6 h-6 flex-shrink-0" />
-                <div>
-                  <div className="font-semibold text-sm">Full Regulatory Compliance</div>
-                  <div className="text-xs text-emerald-500/80">No RBI/IRDAI or abusive policy flags found</div>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 w-full">
-                <ShieldAlert className="w-6 h-6 flex-shrink-0" />
-                <div>
-                  <div className="font-semibold text-sm">Non-Compliant Call Flagged</div>
-                  <div className="text-xs text-rose-400/80">
-                    {compliance?.total_violations ?? 0} violations detected in speech transcript
-                  </div>
-                </div>
+            {crm?.key_points && crm.key_points.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Key discussion points</h4>
+                <ul className="space-y-1.5 text-xs text-slate-300">
+                  {crm.key_points.map((pt, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-sky-400 mt-1.5 flex-shrink-0" />
+                      <span>{pt}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
+          </div>
+
+          {/* Talk Ratio Statistics */}
+          <div className="pt-4 border-t border-[#263245] grid grid-cols-2 gap-4 text-xs text-slate-400">
+            <div>
+              <span>Agent talk ratio: </span>
+              <strong className="text-slate-200">{((talkRatio?.agent_ratio ?? 0.5) * 100).toFixed(0)}%</strong>
+            </div>
+            <div>
+              <span>Customer talk ratio: </span>
+              <strong className="text-slate-200">{((talkRatio?.customer_ratio ?? 0.5) * 100).toFixed(0)}%</strong>
+            </div>
           </div>
         </div>
       </div>

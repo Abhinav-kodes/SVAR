@@ -1,27 +1,29 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
 
 interface AudioPlayerBarProps {
   audioUrl: string;
-  onTimeUpdate?: (currentTime: number) => void;
+  onTimeUpdate?: (currentTimeSeconds: number) => void;
   seekTime?: number | null;
 }
 
-export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({ audioUrl, onTimeUpdate, seekTime }) => {
+export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
+  audioUrl,
+  onTimeUpdate,
+  seekTime,
+}) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+  const [playbackRate, setPlaybackRate] = useState(1.0);
   const [isMuted, setIsMuted] = useState(false);
 
+  // Sync seek requests
   useEffect(() => {
-    if (audioRef.current && seekTime != null) {
+    if (audioRef.current && typeof seekTime === 'number') {
       audioRef.current.currentTime = seekTime;
       setCurrentTime(seekTime);
-      if (!isPlaying) {
-        audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
-      }
     }
   }, [seekTime]);
 
@@ -31,7 +33,8 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({ audioUrl, onTime
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+      audioRef.current.play().catch((err) => console.error('Audio play failed:', err));
+      setIsPlaying(true);
     }
   };
 
@@ -47,18 +50,21 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({ audioUrl, onTime
     setDuration(audioRef.current.duration || 0);
   };
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleScrub = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
     if (audioRef.current) {
       audioRef.current.currentTime = val;
       setCurrentTime(val);
+      onTimeUpdate?.(val);
     }
   };
 
-  const handleSpeedChange = (speed: number) => {
-    setPlaybackSpeed(speed);
+  const cyclePlaybackRate = () => {
+    const rates = [1.0, 1.25, 1.5, 2.0];
+    const nextRate = rates[(rates.indexOf(playbackRate) + 1) % rates.length];
+    setPlaybackRate(nextRate);
     if (audioRef.current) {
-      audioRef.current.playbackRate = speed;
+      audioRef.current.playbackRate = nextRate;
     }
   };
 
@@ -68,17 +74,15 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({ audioUrl, onTime
     setIsMuted(!isMuted);
   };
 
-  const formatTime = (secs: number) => {
-    if (isNaN(secs)) return '0:00';
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
+  const formatTime = (sec: number) => {
+    if (isNaN(sec)) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  if (!audioUrl) return null;
-
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 glass-header border-t border-white/10 px-6 py-3 shadow-2xl flex items-center justify-between gap-6">
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#121a26] border-t border-[#263245] px-6 py-2.5 flex items-center justify-between gap-6 shadow-xl">
       <audio
         ref={audioRef}
         src={audioUrl}
@@ -87,56 +91,50 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({ audioUrl, onTime
         onEnded={() => setIsPlaying(false)}
       />
 
-      {/* Play/Pause & Speed */}
+      {/* Play / Pause Controls */}
       <div className="flex items-center gap-3">
         <button
           onClick={togglePlay}
-          className="w-10 h-10 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white flex items-center justify-center shadow-glow-cyan transition-all transform active:scale-95"
+          className="w-8 h-8 rounded-full bg-sky-600 hover:bg-sky-500 text-white flex items-center justify-center transition-colors"
+          title={isPlaying ? 'Pause' : 'Play'}
         >
-          {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+          {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
         </button>
 
-        {/* Speed Selector */}
-        <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg p-1 text-xs">
-          {[0.75, 1.0, 1.25, 1.5, 2.0].map((s) => (
-            <button
-              key={s}
-              onClick={() => handleSpeedChange(s)}
-              className={`px-2 py-0.5 rounded font-mono text-[11px] transition-colors ${
-                playbackSpeed === s ? 'bg-cyan-500 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {s}x
-            </button>
-          ))}
-        </div>
+        <span className="text-xs font-mono text-slate-400">
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </span>
       </div>
 
-      {/* Scrubber Progress Bar */}
+      {/* Timeline Scrubber */}
       <div className="flex-1 flex items-center gap-3">
-        <span className="text-xs font-mono text-slate-400 w-10 text-right">
-          {formatTime(currentTime)}
-        </span>
-
         <input
           type="range"
           min={0}
           max={duration || 100}
           step={0.1}
           value={currentTime}
-          onChange={handleSeek}
-          className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-400 focus:outline-none"
+          onChange={handleScrub}
+          className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500"
         />
-
-        <span className="text-xs font-mono text-slate-400 w-10">
-          {formatTime(duration)}
-        </span>
       </div>
 
-      {/* Volume Control */}
-      <div className="flex items-center gap-2">
-        <button onClick={toggleMute} className="text-slate-400 hover:text-white transition-colors">
-          {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-cyan-400" />}
+      {/* Speed & Volume Controls */}
+      <div className="flex items-center gap-3 text-xs text-slate-400">
+        <button
+          onClick={cyclePlaybackRate}
+          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono"
+          title="Playback speed"
+        >
+          {playbackRate}x
+        </button>
+
+        <button
+          onClick={toggleMute}
+          className="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+          title={isMuted ? 'Unmute' : 'Mute'}
+        >
+          {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
         </button>
       </div>
     </div>

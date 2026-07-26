@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { CallData } from '../../types/dashboard';
-import { FileText, Search, Play, Volume2 } from 'lucide-react';
+import { Search, Play } from 'lucide-react';
 
 interface TranscriptTabProps {
   data: CallData;
@@ -9,11 +9,18 @@ interface TranscriptTabProps {
 }
 
 export const TranscriptTab: React.FC<TranscriptTabProps> = ({ data, onSeekAudio, currentTime = 0 }) => {
+  const segments = data?.segments || [];
   const [searchTerm, setSearchTerm] = useState('');
   const activeTurnRef = useRef<HTMLDivElement | null>(null);
 
-  const segments = (data?.segments || []).filter((s) => s.text && s.text.trim().length > 0);
+  const filteredSegments = segments.filter((seg) => {
+    if (!searchTerm) return true;
+    const text = seg.text?.toLowerCase() || '';
+    const speaker = seg.speaker?.toLowerCase() || '';
+    return text.includes(searchTerm.toLowerCase()) || speaker.includes(searchTerm.toLowerCase());
+  });
 
+  // Auto-scroll active turn into view
   useEffect(() => {
     if (activeTurnRef.current) {
       activeTurnRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -22,95 +29,74 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({ data, onSeekAudio,
 
   if (segments.length === 0) {
     return (
-      <div className="glass-card p-12 rounded-2xl text-center text-slate-400">
-        No transcript content available for this call.
+      <div className="panel p-8 text-center text-slate-400 text-xs">
+        No transcript segments available.
       </div>
     );
   }
 
-  const filteredSegments = segments.filter((s) =>
-    s.text?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   return (
-    <div className="space-y-6 animate-fadeIn">
-      {/* Transcript Header & Search Bar */}
-      <div className="glass-card p-6 rounded-2xl space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
-          <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-cyan-400" />
-            <h3 className="font-display text-sm font-bold text-white uppercase tracking-wider">
-              Hindi Conversational Speech Transcript
-            </h3>
-          </div>
-
-          {/* Search Filter */}
-          <div className="relative w-full sm:w-64">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search transcript text..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-dark-900/80 border border-white/10 rounded-xl pl-9 pr-4 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
-            />
-          </div>
+    <div className="space-y-4">
+      {/* Search Header */}
+      <div className="panel p-4 flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-white">Transcript</h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Synchronized speaker turns ({segments.length} turns).
+          </p>
         </div>
 
-        {/* Transcript Conversation Flow */}
-        <div className="space-y-3 max-h-[550px] overflow-y-auto pr-2 pt-2">
-          {filteredSegments.map((seg, idx) => {
-            const isAgent = seg.speaker === 'agent' || seg.speaker === 'spk_0';
-            const isActive = currentTime >= seg.start_time_s && currentTime <= seg.end_time_s;
+        <div className="relative w-64">
+          <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search transcript..."
+            className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-md text-xs text-slate-200 focus:outline-none focus:border-sky-500"
+          />
+        </div>
+      </div>
 
-            return (
-              <div
-                key={idx}
-                ref={isActive ? activeTurnRef : null}
-                onClick={() => onSeekAudio?.(seg.start_time_s)}
-                className={`p-4 rounded-xl transition-all duration-200 cursor-pointer border flex gap-3.5 items-start ${
-                  isActive
-                    ? 'bg-cyan-500/15 border-cyan-500/60 shadow-glow-cyan'
-                    : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10'
-                }`}
-              >
-                {/* Speaker Badge */}
-                <div className="flex flex-col items-center gap-1.5 flex-shrink-0 pt-0.5">
-                  <span
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                      isAgent
-                        ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30'
-                        : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                    }`}
-                  >
+      {/* Transcript Turns List */}
+      <div className="panel p-4 space-y-2.5 max-h-[calc(100vh-250px)] overflow-y-auto">
+        {filteredSegments.map((seg, idx) => {
+          const isAgent = (seg.speaker || '').toLowerCase().includes('agent');
+          const isActive = currentTime >= seg.start_time_s && currentTime <= seg.end_time_s;
+
+          return (
+            <div
+              key={idx}
+              ref={isActive ? activeTurnRef : null}
+              onClick={() => onSeekAudio?.(seg.start_time_s)}
+              className={`p-3 rounded-md transition-colors cursor-pointer border ${
+                isActive
+                  ? 'bg-sky-500/10 border-sky-500/40 text-slate-100'
+                  : 'bg-slate-900/40 border-slate-800/80 hover:bg-slate-800/50 text-slate-300'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs mb-1">
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${isAgent ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}`}>
                     {isAgent ? 'Agent' : 'Customer'}
                   </span>
-                  {isActive && (
-                    <span className="flex items-center text-cyan-400 animate-pulse">
-                      <Volume2 className="w-3.5 h-3.5" />
-                    </span>
-                  )}
+                  <span className="text-[11px] font-mono text-slate-500">
+                    {seg.start_time_s.toFixed(1)}s – {seg.end_time_s.toFixed(1)}s
+                  </span>
                 </div>
 
-                {/* Text & Timestamp Content */}
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                    <span>
-                      {seg.start_time_s.toFixed(1)}s – {seg.end_time_s.toFixed(1)}s
-                    </span>
-                    <button className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 opacity-0 hover:opacity-100 transition-opacity">
-                      <Play className="w-3 h-3 fill-current" />
-                      Listen
-                    </button>
-                  </div>
-                  <p className="text-sm text-slate-100 leading-relaxed font-sans">
-                    {seg.text}
-                  </p>
-                </div>
+                <button className="text-slate-400 hover:text-sky-400 flex items-center gap-1 text-[11px]">
+                  <Play className="w-3 h-3 fill-current" />
+                  <span>Seek</span>
+                </button>
               </div>
-            );
-          })}
-        </div>
+
+              <p className="text-xs leading-relaxed font-sans font-normal text-slate-200">
+                {seg.text || '(No speech transcript)'}
+              </p>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import React from 'react';
 import type { CallData } from '../../types/dashboard';
-import { Scale, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { ShieldCheck, Play, AlertOctagon, AlertTriangle } from 'lucide-react';
 
 interface ComplianceTabProps {
   data: CallData;
@@ -12,83 +12,55 @@ export const ComplianceTab: React.FC<ComplianceTabProps> = ({ data, onSeekAudio 
 
   if (!compliance) {
     return (
-      <div className="glass-card p-12 rounded-2xl text-center text-slate-400">
-        No compliance engine output available.
+      <div className="panel p-8 text-center text-slate-400 text-xs">
+        No compliance evaluation data available.
       </div>
     );
   }
 
   const { compliant, total_violations = 0, agent_violations = 0, customer_violations = 0, segment_results = [] } = compliance;
 
-  const violationTypeStyles: Record<string, string> = {
-    rbi: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
-    irdai: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-    abusive: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
-    threat: 'bg-rose-600/20 text-rose-300 border-rose-500/40',
-  };
-
   return (
-    <div className="space-y-6 animate-fadeIn">
-      {/* Compliance Overview Grid */}
-      <div className="glass-card p-6 rounded-2xl space-y-4">
-        <div className="flex items-center gap-2 border-b border-white/10 pb-3">
-          <Scale className="w-5 h-5 text-cyan-400" />
-          <h3 className="font-display text-sm font-bold text-white uppercase tracking-wider">
-            Regulatory Compliance & Risk Assessment
-          </h3>
+    <div className="space-y-6">
+      {/* Risk Summary Header */}
+      <div className="panel p-5 flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold text-white">Compliance & policy review</h2>
+            <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${total_violations > 0 ? 'badge-danger' : 'badge-success'}`}>
+              {compliant ? 'Passed' : 'Action required'}
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            RBI, IRDAI regulatory rules, debt collection conduct, and abusive language inspection.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-1">
-            <div className="text-xs font-semibold text-slate-400 uppercase">Compliance Status</div>
-            <div className="pt-1">
-              {compliant ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                  <ShieldCheck className="w-4 h-4" /> Compliant
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
-                  <ShieldAlert className="w-4 h-4" /> Non-Compliant
-                </span>
-              )}
-            </div>
+        <div className="flex items-center gap-6 text-xs text-slate-400">
+          <div>
+            Total flags: <strong className="text-slate-100">{total_violations}</strong>
           </div>
-
-          <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-1">
-            <div className="text-xs font-semibold text-slate-400 uppercase">Total Violations</div>
-            <div className={`font-display text-2xl font-bold ${total_violations > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-              {total_violations}
-            </div>
+          <div>
+            Agent: <strong className="text-amber-400">{agent_violations}</strong>
           </div>
-
-          <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-1">
-            <div className="text-xs font-semibold text-slate-400 uppercase">Agent Violations</div>
-            <div className="font-display text-2xl font-bold text-amber-400">
-              {agent_violations}
-            </div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-1">
-            <div className="text-xs font-semibold text-slate-400 uppercase">Customer Violations</div>
-            <div className="font-display text-2xl font-bold text-purple-400">
-              {customer_violations}
-            </div>
+          <div>
+            Customer: <strong className="text-purple-400">{customer_violations}</strong>
           </div>
         </div>
       </div>
 
-      {/* Flagged Violations Detailed List */}
-      <div className="glass-card p-6 rounded-2xl space-y-4">
-        <h3 className="font-display text-sm font-bold text-white uppercase tracking-wider">
-          Detected Policy & Regulatory Flags
+      {/* Flagged Policy Evidence List */}
+      <div className="panel p-5 space-y-4">
+        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          Evidence & Flagged Statements
         </h3>
 
         {total_violations === 0 ? (
-          <div className="p-6 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-3">
+          <div className="p-4 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-3">
             <ShieldCheck className="w-5 h-5 flex-shrink-0" />
             <div>
-              <div className="font-semibold text-sm">Clean Call Recording</div>
-              <div>No RBI, IRDAI, debt collection, or abusive language policy violations were triggered.</div>
+              <span className="font-semibold block">Clean call record</span>
+              <span className="text-emerald-300/80">No RBI, IRDAI, or conduct policy violations were triggered.</span>
             </div>
           </div>
         ) : (
@@ -100,27 +72,47 @@ export const ComplianceTab: React.FC<ComplianceTabProps> = ({ data, onSeekAudio 
 
               return sr.flags.map((flag, fIdx) => {
                 const parts = flag.split(':');
-                const typeKey = parts[0].toLowerCase();
-                const styleClass = violationTypeStyles[typeKey] || violationTypeStyles.rbi;
-                const message = parts.slice(1).join(':') || flag;
+                const cat = parts[0].toUpperCase();
+                const detail = parts.slice(1).join(':') || flag;
+                const isCritical = cat === 'RBI' || cat === 'THREAT';
 
                 return (
                   <div
                     key={`${sIdx}-${fIdx}`}
-                    onClick={() => onSeekAudio?.(startTime)}
-                    className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-rose-500/40 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className="p-4 rounded-md bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-colors flex items-start justify-between gap-4"
                   >
-                    <div className="flex items-center gap-3">
-                      <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border ${styleClass}`}>
-                        {typeKey}
-                      </span>
-                      <p className="text-xs text-slate-200 font-medium">{message}</p>
+                    <div className="flex items-start gap-3">
+                      {isCritical ? (
+                        <AlertOctagon className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                      )}
+
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${isCritical ? 'badge-danger' : 'badge-warning'}`}>
+                            {cat}
+                          </span>
+                          <span className="text-xs font-semibold text-slate-200 capitalize">
+                            {sr.speaker || 'Speaker'}
+                          </span>
+                          <span className="text-xs text-slate-500">@ {typeof startTime === 'number' ? startTime.toFixed(1) : startTime}s</span>
+                        </div>
+                        <p className="text-xs text-slate-300 leading-relaxed font-mono bg-slate-950/40 p-2 rounded border border-slate-800/80">
+                          "{detail}"
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
-                      <span className="capitalize">{sr.speaker || 'unknown'}</span>
-                      <span>@ {typeof startTime === 'number' ? startTime.toFixed(1) : startTime}s</span>
-                    </div>
+                    {/* Listen to Evidence Action */}
+                    <button
+                      onClick={() => onSeekAudio?.(startTime)}
+                      className="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1.5 flex-shrink-0"
+                      title="Play audio from this timestamp"
+                    >
+                      <Play className="w-3 h-3 fill-current text-sky-400" />
+                      <span>Listen</span>
+                    </button>
                   </div>
                 );
               });
