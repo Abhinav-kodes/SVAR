@@ -499,7 +499,11 @@ API_ROUTES = {
 
 class DashboardHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
+    def do_HEAD(self):
+        self.do_GET()
+
     def do_GET(self):
+
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         qs = urllib.parse.parse_qs(parsed.query)
@@ -513,9 +517,30 @@ class DashboardHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
-            with open(os.path.join(DASHBOARD_DIR, "index.html"), "rb") as f:
+            dist_index = os.path.join(DASHBOARD_DIR, "dist", "index.html")
+            target_html = dist_index if os.path.exists(dist_index) else os.path.join(DASHBOARD_DIR, "index.html")
+            with open(target_html, "rb") as f:
                 self.wfile.write(f.read())
             return
+
+        dist_file = os.path.join(DASHBOARD_DIR, "dist", path.lstrip("/"))
+        if path != "/" and os.path.isfile(dist_file):
+            self.send_response(200)
+            if dist_file.endswith(".js"):
+                self.send_header("Content-Type", "application/javascript")
+            elif dist_file.endswith(".css"):
+                self.send_header("Content-Type", "text/css")
+            elif dist_file.endswith(".svg"):
+                self.send_header("Content-Type", "image/svg+xml")
+            elif dist_file.endswith(".png"):
+                self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(os.path.getsize(dist_file)))
+            self.end_headers()
+            with open(dist_file, "rb") as f:
+                self.wfile.write(f.read())
+            return
+
+
 
         if path == "/api/progress":
             filename = qs.get("file", [""])[0]
