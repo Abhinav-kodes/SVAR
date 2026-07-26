@@ -1,6 +1,6 @@
 import React from 'react';
 import type { CallData } from '../../types/dashboard';
-import { AlertTriangle, Play } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 interface ComplianceTabProps {
   data: CallData;
@@ -78,7 +78,12 @@ export const ComplianceTab: React.FC<ComplianceTabProps> = ({ data, onSeekAudio 
                 const tierClass = isCritical ? 'tier-critical' : isWarn ? 'tier-warn' : '';
 
                 return (
-                  <div key={`${sIdx}-${fIdx}`} className={`evidence ${tierClass}`}>
+                  <div
+                    key={`${sIdx}-${fIdx}`}
+                    onClick={() => onSeekAudio?.(startTime)}
+                    className={`evidence cursor-pointer transition-colors duration-100 hover:bg-[#211C15]/80 ${tierClass}`}
+                    title="Click to play audio from this timestamp"
+                  >
                     <div className="flex items-start gap-3 min-w-0">
                       <div
                         className="w-[26px] h-[26px] rounded-[6px] flex items-center justify-center flex-shrink-0 mt-px"
@@ -105,14 +110,6 @@ export const ComplianceTab: React.FC<ComplianceTabProps> = ({ data, onSeekAudio 
                         </div>
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => onSeekAudio?.(startTime)}
-                      className="btn-ghost"
-                    >
-                      <Play className="w-3 h-3 fill-current" />
-                      Listen
-                    </button>
                   </div>
                 );
               });

@@ -30,12 +30,10 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({ data }) => {
 
   const totalViolations = compliance?.total_violations ?? 0;
 
+  const components = qa?.components || {};
 
   const qaScore = qa?.qa_score ?? 0;
   const grade = qa?.grade ?? 'N/A';
-
-  const components = qa?.components || {};
-  const weights = qa?.weights_used || {};
 
   const categoryLabels: Record<string, string> = {
     customer_sentiment: 'Customer sentiment',
@@ -127,7 +125,6 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({ data }) => {
           <div className="flex flex-col gap-3.5 mt-[18px]">
             {Object.entries(components).map(([key, value]) => {
               const scoreVal = typeof value === 'number' ? value : 0;
-              const weight = weights[key] ? `${(weights[key] * 100).toFixed(0)}%` : '20%';
               const label = categoryLabels[key] || key.replace(/_/g, ' ');
               const fillClass = scoreVal < 60 ? 'cat-fill-red' : scoreVal < 80 ? 'cat-fill-amber' : 'cat-fill-green';
 
@@ -135,9 +132,6 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({ data }) => {
                 <div key={key}>
                   <div className="flex justify-between items-baseline mb-1.5 gap-2">
                     <span className="text-[12.5px] font-medium capitalize">{label}</span>
-                    <span className="num text-[10.5px] mr-auto ml-2.5" style={{ color: 'var(--text-tertiary)' }}>
-                      WEIGHT {weight}
-                    </span>
                     <span
                       className="num text-[12.5px] font-semibold"
                       style={{ color: scoreVal < 60 ? 'var(--red-strong)' : scoreVal < 80 ? 'var(--amber)' : 'var(--green)' }}

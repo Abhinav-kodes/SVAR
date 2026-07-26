@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import type { CallData } from '../../types/dashboard';
 import { TrendingUp } from 'lucide-react';
 
@@ -12,15 +12,6 @@ export const DenoisingTab: React.FC<DenoisingTabProps> = ({ data }) => {
   const snrBefore = denoise?.snr_before_db ?? 14.2;
   const snrAfter = denoise?.snr_after_db ?? 28.6;
   const snrDelta = (snrAfter - snrBefore).toFixed(1);
-
-  // Generate waveform bars deterministically
-  const bars = useMemo(() => {
-    return Array.from({ length: 80 }).map((_, i) => {
-      const pause = (i % 17) > 13;
-      const h = pause ? 6 + (Math.sin(i * 1.3) + 1) * 4 : 20 + Math.abs(Math.sin(i * 0.4)) * 30 + (Math.sin(i * 0.7) + 1) * 6;
-      return { height: Math.round(h), pause };
-    });
-  }, []);
 
   return (
     <div className="flex flex-col gap-5">
@@ -77,30 +68,6 @@ export const DenoisingTab: React.FC<DenoisingTabProps> = ({ data }) => {
             </div>
             <div className="text-[11.5px] mt-1" style={{ color: 'var(--text-tertiary)' }}>Short-time intelligibility</div>
           </div>
-        </div>
-
-        {/* Waveform */}
-        <div className="eyebrow mt-5 mb-2.5">Acoustic clarity waveform</div>
-        <div
-          className="flex items-end gap-[2px] h-[70px] rounded-lg p-3.5 px-4.5"
-          style={{ background: 'var(--surface-1)', border: '1px solid var(--border)' }}
-        >
-          {bars.map((bar, i) => (
-            <div
-              key={i}
-              className={`flex-1 rounded-[1px] min-w-[2px] ${bar.pause ? 'wf-bar-pause' : 'wf-bar'}`}
-              style={{ height: `${bar.height}px` }}
-            />
-          ))}
-        </div>
-
-        <div className="flex justify-between mt-2.5 text-[11.5px]" style={{ color: 'var(--text-tertiary)' }}>
-          <span>
-            Denoising algorithm: <b className="font-medium" style={{ color: 'var(--text-secondary)' }}>Spectral subtraction + deep filter</b>
-          </span>
-          <span>
-            <b className="font-medium" style={{ color: 'var(--text-secondary)' }}>24kHz</b> / Mono / WAV
-          </span>
         </div>
       </div>
     </div>

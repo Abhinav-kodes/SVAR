@@ -7,7 +7,7 @@ interface EmotionTabProps {
   onSeekAudio?: (timeSeconds: number) => void;
 }
 
-export const EmotionTab: React.FC<EmotionTabProps> = ({ data }) => {
+export const EmotionTab: React.FC<EmotionTabProps> = ({ data, onSeekAudio }) => {
   const fusion = data?.fusion || [];
   const segments = data?.segments || [];
 
@@ -78,7 +78,9 @@ export const EmotionTab: React.FC<EmotionTabProps> = ({ data }) => {
             return (
               <div
                 key={idx}
-                className={`trow ${isNegative ? 'trow-hi' : ''}`}
+                onClick={() => onSeekAudio?.(seg.start_time_s)}
+                className={`trow cursor-pointer transition-colors duration-100 hover:bg-[#211C15]/60 ${isNegative ? 'trow-hi' : ''}`}
+                title="Click to play audio from this turn"
               >
                 <span className={`tag ${isAgent ? 'tag-agent' : 'tag-customer'}`}>
                   {isAgent ? 'Agent' : 'Customer'}

@@ -47,7 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className="w-[250px] flex-shrink-0 flex flex-col overflow-y-auto"
+      className="w-[250px] flex-shrink-0 flex flex-col sticky top-0 h-screen overflow-y-auto"
       style={{
         background: 'var(--surface-1)',
         borderRight: '1px solid var(--border)',

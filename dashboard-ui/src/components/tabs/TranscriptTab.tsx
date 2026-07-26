@@ -67,8 +67,10 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({ data, onSeekAudio,
             return (
               <div
                 key={idx}
-                className="trow"
+                onClick={() => onSeekAudio?.(seg.start_time_s)}
+                className="trow cursor-pointer transition-colors duration-100 hover:bg-[#211C15]/60"
                 style={isActive ? { background: 'var(--amber-dim)', margin: '0 -14px', padding: '13px 14px', borderRadius: '8px', borderBottomColor: 'transparent' } : undefined}
+                title="Click to play audio from this turn"
               >
                 <span className={`tag ${isAgent ? 'tag-agent' : 'tag-customer'}`}>
                   {isAgent ? 'Agent' : 'Customer'}
@@ -82,13 +84,6 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({ data, onSeekAudio,
                   </div>
                   <div className="text-[13.5px] leading-relaxed">{seg.text || '(silence)'}</div>
                 </div>
-
-                <button
-                  onClick={() => onSeekAudio?.(seg.start_time_s)}
-                  className="btn-ghost"
-                >
-                  Seek
-                </button>
               </div>
             );
           })}
