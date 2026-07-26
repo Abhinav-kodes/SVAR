@@ -18,7 +18,7 @@ export const ComplianceTab: React.FC<ComplianceTabProps> = ({ data, onSeekAudio 
     );
   }
 
-  const { compliant, total_violations, agent_violations, customer_violations, segment_results = [] } = compliance;
+  const { compliant, total_violations = 0, agent_violations = 0, customer_violations = 0, segment_results = [] } = compliance;
 
   const violationTypeStyles: Record<string, string> = {
     rbi: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
@@ -94,7 +94,9 @@ export const ComplianceTab: React.FC<ComplianceTabProps> = ({ data, onSeekAudio 
         ) : (
           <div className="space-y-3">
             {segment_results.map((sr, sIdx) => {
-              if (sr.violation_count === 0) return null;
+              if (!sr || sr.violation_count === 0 || !Array.isArray(sr.flags)) return null;
+
+              const startTime = (sr as any).start ?? (sr as any).start_time_s ?? 0;
 
               return sr.flags.map((flag, fIdx) => {
                 const parts = flag.split(':');
@@ -105,7 +107,7 @@ export const ComplianceTab: React.FC<ComplianceTabProps> = ({ data, onSeekAudio 
                 return (
                   <div
                     key={`${sIdx}-${fIdx}`}
-                    onClick={() => onSeekAudio?.(sr.start)}
+                    onClick={() => onSeekAudio?.(startTime)}
                     className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-rose-500/40 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                   >
                     <div className="flex items-center gap-3">
@@ -116,8 +118,8 @@ export const ComplianceTab: React.FC<ComplianceTabProps> = ({ data, onSeekAudio 
                     </div>
 
                     <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
-                      <span className="capitalize">{sr.speaker}</span>
-                      <span>@ {sr.start.toFixed(1)}s</span>
+                      <span className="capitalize">{sr.speaker || 'unknown'}</span>
+                      <span>@ {typeof startTime === 'number' ? startTime.toFixed(1) : startTime}s</span>
                     </div>
                   </div>
                 );

@@ -10,7 +10,9 @@ import { EmotionTab } from './components/tabs/EmotionTab';
 import { ComplianceTab } from './components/tabs/ComplianceTab';
 import { QAScoreTab } from './components/tabs/QAScoreTab';
 import { CRMTab } from './components/tabs/CRMTab';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import type { TabId, CallData, ProgressState } from './types/dashboard';
+
 
 const TAB_KEYS: Record<TabId, (keyof CallData)[]> = {
   summary: ['duration_s', 'processing_time_s', 'segments', 'talk_ratio', 'denoise_metrics', 'qa', 'compliance', 'fusion'],
@@ -174,20 +176,22 @@ export const App: React.FC = () => {
 
         {/* Main Content Workspace */}
         <main className="flex-1 p-6 overflow-y-auto max-w-7xl mx-auto w-full">
-          {activeTab === 'summary' && <SummaryTab data={callData} />}
-          {activeTab === 'denoising' && <DenoisingTab data={callData} activeFile={activeFile} />}
-          {activeTab === 'diarization' && (
-            <DiarizationTab data={callData} onSeekAudio={handleSeekAudio} currentTime={currentTime} />
-          )}
-          {activeTab === 'transcript' && (
-            <TranscriptTab data={callData} onSeekAudio={handleSeekAudio} currentTime={currentTime} />
-          )}
-          {activeTab === 'emotion' && <EmotionTab data={callData} />}
-          {activeTab === 'compliance' && (
-            <ComplianceTab data={callData} onSeekAudio={handleSeekAudio} />
-          )}
-          {activeTab === 'qascore' && <QAScoreTab data={callData} />}
-          {activeTab === 'crm' && <CRMTab data={callData} />}
+          <ErrorBoundary key={activeTab}>
+            {activeTab === 'summary' && <SummaryTab data={callData} />}
+            {activeTab === 'denoising' && <DenoisingTab data={callData} activeFile={activeFile} />}
+            {activeTab === 'diarization' && (
+              <DiarizationTab data={callData} onSeekAudio={handleSeekAudio} currentTime={currentTime} />
+            )}
+            {activeTab === 'transcript' && (
+              <TranscriptTab data={callData} onSeekAudio={handleSeekAudio} currentTime={currentTime} />
+            )}
+            {activeTab === 'emotion' && <EmotionTab data={callData} />}
+            {activeTab === 'compliance' && (
+              <ComplianceTab data={callData} onSeekAudio={handleSeekAudio} />
+            )}
+            {activeTab === 'qascore' && <QAScoreTab data={callData} />}
+            {activeTab === 'crm' && <CRMTab data={callData} />}
+          </ErrorBoundary>
         </main>
       </div>
 
