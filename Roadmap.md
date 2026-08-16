@@ -36,8 +36,33 @@ RAW CALL AUDIO
            ↓
 ┌─────────────────────────────────┐
 │  DASHBOARD + INTEGRATION ✅ 90% │  React operator UI + Python server,
-│  Sequential background pipeline │  progress polling, per-stage APIs
+│  Sequential background thread   │  progress polling, per-stage APIs
 └─────────────────────────────────┘
+```
+
+---
+
+## Target Architecture (Production)
+
+**Current:** `React App → Python HTTP Server → Background Thread (Sequential)`
+**Blocking risk:** server freezes under load, work lost on crash, no parallelism.
+
+**Target:** Distributed voice AI pipeline — the ML models stay the same; the plumbing around them becomes production-grade:
+
+```
+React App (WebSockets)
+  │
+  ▼
+FastAPI Server ──────► Redis Queue (RQ)
+  │                        │
+  │ (Pub/Sub)              ▼
+  │                  Background Worker
+  │                  ├─ Denoising
+  │                  ├─ Diarization
+  │                  └─ LLM Audit
+  │                        │
+  ▼                        ▼
+PostgreSQL (Results) ◄─────┘
 ```
 
 ---
@@ -146,19 +171,47 @@ All components implemented, tested, and benchmarked. Benchmarked on 3 sample cal
 
 ---
 
-## Integration + Polish 🔴 NOT STARTED
+## Production Upgrade Roadmap 🔴 PLANNED
 
-### 🔴 FastAPI Backend
-- Replace `http.server` with async FastAPI: JWT auth (HS256), Pydantic models, `/health`
+> Do **not** do all of this at once. **Phases 1 and 2 first** — they convert SVAR from a local script into a distributed, job-based voice AI pipeline. Phases 3–4 add deployment and senior-level observability.
 
-### 🔴 Celery + Task Queue
-- Celery + RabbitMQ for async pipeline execution (task chain: denoise → diarize → analyze)
+### Phase 1 — Backend Infra Upgrade: FastAPI + Redis Queue + Postgres 🎯 FIRST
+The current `http.server` + background thread blocks the server and loses work if it crashes. Fix the plumbing first:
 
-### 🔴 Database + Caching
-- MongoDB schemas (Call, Segment, Agent); Redis cache for dashboard queries (TTL 5 min)
+- **Swap to FastAPI** — replace `dashboard_server.py` with a proper FastAPI app
+  - Native async (crucial when waiting on slow APIs like GCP STT / Gemini)
+  - Pydantic models for request/response schemas
+  - `GET /health` endpoint
+- **Implement a Task Queue (Redis + RQ/Celery)**
+  - FastAPI server only receives the audio file → saves it → enqueues job → **immediately returns a `job_id`**
+  - The pipeline (denoise → diarize → STT → emotion → audit) is pulled off the Redis queue by a **separate worker process**
+  - Dashboard never freezes; dozens of calls queue up; multiple workers process in parallel
+- **Add PostgreSQL for Persistence**
+  - Final JSON results (CRM notes, QA scores, compliance flags, segments) saved keyed by `call_id`
+  - Survives restarts; enables historical queries across calls
 
-### 🔴 Docker Compose
-- `Dockerfile` for API + worker; `docker-compose.yml`: api, worker, rabbitmq, mongodb, redis
+### Phase 2 — Real-Time Updates: WebSockets 🎯 SECOND
+Replace `/api/progress` polling (network overhead + lag) with an event-driven push model:
+
+- **Redis Pub/Sub**: worker publishes a message on stage completion (e.g. `denoise:done`)
+- **FastAPI subscribes** and pushes the update to the React dashboard over a **WebSocket** (`/ws/progress`)
+- Same pattern used by Vapi / DevRev — proves event-driven architecture skills
+
+### Phase 3 — Containerization & Deployment
+- `Dockerfile` for the **API** and a separate one for the **worker**
+- `docker-compose.yml` spinning up: ① FastAPI API server ② Python pipeline worker ③ Redis ④ PostgreSQL
+- Clone → `docker-compose up` → entire stack running locally in ~30 seconds
+- Removes the friction of manual "requires GCP billing / hf auth login" setup
+
+### Phase 4 — Observability & Fault Tolerance
+What happens when Gemini rate-limits or GCP STT fails? Today the pipeline would fail hard.
+
+- **Retries with exponential backoff** via `tenacity`: on 429/5xx, wait 2s → 4s → 8s and retry automatically
+- **Prometheus metrics** at `/metrics`:
+  - `svar_denoise_latency_seconds` (per-stage latency)
+  - `svar_gemini_audit_failures_total` (error counters)
+  - `svar_redis_queue_size` (queue depth)
+- Interview flex: *"I instrumented my SVAR pipeline with Prometheus to track p99 STT latency"*
 
 ---
 
@@ -171,14 +224,17 @@ All components implemented, tested, and benchmarked. Benchmarked on 3 sample cal
 | STT + Emotion + Roles | ✅ Complete | Chirp 3 V2, Gemini role resolver, translate+DistilRoBERTa, acoustic profiles, fusion |
 | Unified Audit (Compliance + QA + CRM) | ✅ Complete | single Gemini call + local fallbacks |
 | Dashboard + Integration | ✅ 90% | React operator UI, sequential background pipeline, progress polling |
-| Integration + Polish | 🔴 0% | FastAPI, Celery, MongoDB, Docker Compose |
+| Phase 1: FastAPI + Redis Queue + Postgres | 🔴 0% | async API, job queue, worker processes, persistence |
+| Phase 2: WebSockets (Pub/Sub) | 🔴 0% | Redis Pub/Sub → FastAPI → React push updates |
+| Phase 3: Docker Compose | 🔴 0% | API + worker Dockerfiles, compose stack |
+| Phase 4: Observability + Fault Tolerance | 🔴 0% | tenacity retries, Prometheus metrics |
 
 ### Remaining Work (priority order)
 1. **Guard against hallucinated audits** — skip/flag the unified audit when the STT transcript is empty (currently Gemini confabulates results on empty transcripts)
-2. **FastAPI Backend** — replace `http.server` with proper async API
-3. **Docker Compose** — containerized deployment
-4. **Celery + task queue** — async pipeline execution
-5. **MongoDB + Redis** — persistence and caching
+2. **Phase 1** — FastAPI backend + Redis job queue + PostgreSQL persistence
+3. **Phase 2** — WebSocket real-time updates (replaces progress polling)
+4. **Phase 3** — Docker Compose deployment
+5. **Phase 4** — tenacity retries + Prometheus `/metrics`
 
 ---
 
@@ -194,7 +250,10 @@ A Gemini call resolves agent/customer mapping with full conversational context; 
 Compliance, QA, and CRM note share the same transcript evidence. One Gemini call (66% fewer LLM invocations) keeps scores, flags, and narrative mutually consistent.
 
 ### Why sequential pipeline stages?
-Stages were made sequential (was: ThreadPoolExecutor) to respect the 4GB GPU — models are unloaded between stages via `_free_gpu`, avoiding CUDA OOM.
+Stages were made sequential (was: ThreadPoolExecutor) to respect the 4GB GPU — models are unloaded between stages via `_free_gpu`, avoiding CUDA OOM. In the production phase, this constraint moves into the **worker** (one worker per GPU, queue parallelism across machines).
+
+### Why FastAPI + Redis + Postgres? (production phase)
+The ML models are done — the missing piece is plumbing. FastAPI gives async I/O and industry-standard API patterns; Redis decouples job intake from execution (server returns a `job_id` immediately); Postgres persists results; WebSockets replace polling; Docker makes the stack reproducible; Prometheus + retries make it observable and resilient.
 
 ---
 
