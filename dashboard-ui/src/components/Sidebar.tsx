@@ -68,16 +68,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span className="text-[14.5px] font-semibold tracking-tight" style={{ letterSpacing: '-0.01em' }}>
             SVAR Call Analytics
           </span>
-          <span
-            className="ml-1.5 text-[10px] px-1.5 py-px rounded"
-            style={{
-              fontFamily: 'var(--font-mono)',
-              color: 'var(--text-tertiary)',
-              background: 'var(--surface-3)',
-            }}
-          >
-            v2.4
-          </span>
         </div>
       </div>
 

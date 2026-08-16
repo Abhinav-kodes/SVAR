@@ -36,20 +36,6 @@ export const Header: React.FC<HeaderProps> = ({ activeFile, callData }) => {
           <span className="num" style={{ color: 'var(--text-primary)' }}>{processTime}</span>
         </div>
 
-        <div
-          className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full"
-          style={{
-            color: 'var(--green)',
-            background: 'var(--surface-2)',
-            border: '1px solid rgba(127,169,135,0.25)',
-          }}
-        >
-          <span
-            className="w-[7px] h-[7px] rounded-full flex-shrink-0"
-            style={{ background: 'var(--green)' }}
-          />
-          <span>Pipeline ready</span>
-        </div>
       </div>
     </header>
   );

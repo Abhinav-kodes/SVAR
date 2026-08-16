@@ -1,8 +1,0 @@
-# Data paths config
-# Adjust these to match your local paths
-
-emoinhindi_raw: "data/emoinhindi/raw"
-emoinhindi_processed: "data/emoinhindi/processed"
-train_path: "data/emoinhindi/processed/train_utterances.pt"
-val_path: "data/emoinhindi/processed/val_utterances.pt"
-test_path: "data/emoinhindi/processed/test_utterances.pt"
