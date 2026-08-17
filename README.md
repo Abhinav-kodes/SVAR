@@ -166,6 +166,7 @@ Jobs are executed by a separate RQ worker process, and results persist in Postgr
 | `LLM_COMPLIANCE_DISABLED=1` | Skip Gemini in compliance engine |
 | `LLM_CRM_DISABLED=1` | Skip Gemini CRM note generation |
 | `ROLE_INFERENCE_DISABLED=1` | Skip role inference (no agent/customer mapping) |
+| `STT_VAD_DISABLED=1` | Send full audio to STT instead of VAD-gated speech chunks |
 
 ---
 

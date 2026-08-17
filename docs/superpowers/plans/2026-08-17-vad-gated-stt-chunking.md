@@ -345,3 +345,11 @@ git commit -m "docs: mark hallucination guard and VAD-gated STT chunks complete"
 
 Run: `venv/bin/python -m pytest -q`
 Expected: 66 passed, 3 skipped, 4 failed — the 4 failures are exactly the pre-existing ones (`diarization/tests/test_pipeline.py::TestDiarizationPipeline::test_diarization_pipeline_execution`, and the 3 `sentiment/tests/test_stt_transcriber.py` method-drift tests), untouched by this plan.
+---
+
+## Deviations recorded during execution
+
+1. **Chunk length assertions are byte counts, not sample counts.** Chunks are `piece.tobytes()` (int16 → 2 bytes/sample). All `len(chunks[i][0])` assertions in the plan compare bytes; the committed tests use `len(chunks[i][0]) // 2` so the expected values (in samples: `1.6 * SR`, `50 * SR`, `4 * SR`, …) hold.
+2. **Pure-tone synthetic audio never triggers the VAD.** `compute_vad` thresholds against the 10th-percentile frame RMS; with no quiet frames, the noise floor equals the signal and `threshold_multiplier=1.5` exceeds everything (0 active frames). The split/drop tests therefore prepend `8s` of silence (≥10% of frames), and their expected offsets shifted from `0.0`/`50.0` to `7.7`/`57.7` and from `0.0` to `7.7`.
+3. Task 1's merge-gap expected length uses `1.3 * SR` and the split test's second chunk `2.0 * SR`→`2.3 * SR` (audio-length clamping of trailing padding), per plan self-review.
+4. All 7 tests in `sentiment/tests/test_vad_chunking.py` pass; implementation matches the plan's code except the float32 cast: `compute_vad(audio_int16.astype(np.float32), ...)` — required because int16 squares overflow in `frame_rms` (NaN → all-inactive mask).
