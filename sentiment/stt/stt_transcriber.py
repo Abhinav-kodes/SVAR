@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(
@@ -12,6 +12,56 @@ CHUNK_SECONDS = 50
 PROJECT_ID = "sunohq"
 REGION = "us"
 MAX_STT_WORKERS = 5
+VAD_FRAME_MS = 25
+VAD_PADDING_S = 0.3
+VAD_GAP_TOLERANCE_S = 0.5
+
+
+def _build_vad_chunks(audio_int16: np.ndarray, sr: int) -> List[Tuple[bytes, float]]:
+    """Slice audio into <=CHUNK_SECONDS chunks covering only speech regions.
+
+    Speech regions come from denoising.vad_basic.compute_vad (VAD_FRAME_MS
+    frames). Gaps <= VAD_GAP_TOLERANCE_S between speech frames are merged;
+    each region is padded by VAD_PADDING_S on both sides (clamped to audio
+    bounds). Returns (chunk_bytes, absolute_offset_s) pairs.
+    """
+    from denoising.vad_basic import compute_vad
+
+    vad = compute_vad(audio_int16.astype(np.float32), sr, frame_duration_ms=VAD_FRAME_MS)
+    if not vad.any():
+        return []
+
+    frame_s = VAD_FRAME_MS / 1000.0
+    gap_frames = max(1, int(round(VAD_GAP_TOLERANCE_S / frame_s)))
+
+    regions = []
+    start = None
+    prev = -1
+    for i, active in enumerate(vad):
+        if active:
+            if start is None or i - prev > gap_frames + 1:
+                if start is not None:
+                    regions.append((start, prev))
+                start = i
+            prev = i
+    if start is not None:
+        regions.append((start, prev))
+
+    duration_s = len(audio_int16) / sr
+    chunks = []
+    chunk_samples = CHUNK_SECONDS * sr
+    for start_f, end_f in regions:
+        region_start = max(0.0, start_f * frame_s - VAD_PADDING_S)
+        region_end = min(duration_s, (end_f + 1) * frame_s + VAD_PADDING_S)
+        seg = audio_int16[int(region_start * sr) : int(region_end * sr)]
+        if len(seg) == 0:
+            continue
+        for i in range(0, len(seg), chunk_samples):
+            piece = seg[i : i + chunk_samples]
+            if len(piece) < sr:
+                break
+            chunks.append((piece.tobytes(), region_start + i / sr))
+    return chunks
 
 
 class SpeechToTextTranscriber:
