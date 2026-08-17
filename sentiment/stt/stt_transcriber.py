@@ -229,6 +229,24 @@ class SpeechToTextTranscriber:
     ) -> List[Dict[str, Any]]:
         merged = self._merge_segments(diarization_segments, max_gap=0.5)
         words = self._transcribe_api(full_audio, sr, language)
+        return self.build_diarized_transcript(merged, words)
+
+    def transcribe_words(
+        self,
+        audio: np.ndarray,
+        sr: int,
+        language: str = "hi",
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Transcribe audio via Chirp 3 and return the raw word stream."""
+        return self._transcribe_api(audio, sr, language)
+
+    def build_diarized_transcript(
+        self,
+        segments: List[Dict[str, Any]],
+        words: Optional[List[Dict[str, Any]]],
+    ) -> List[Dict[str, Any]]:
+        """Map a raw word stream onto diarized segments (local, free)."""
+        merged = self._merge_segments(segments, max_gap=0.5)
 
         if not words:
             return [
