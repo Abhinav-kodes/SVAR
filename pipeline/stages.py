@@ -276,6 +276,11 @@ def stage_audit(ctx: JobContext):
     if not c.get("fusion"):
         stage_fusion(ctx)
 
+    if not any(s.get("text", "").strip() for s in c.get("segments", [])):
+        c["audit_skipped"] = "no transcript"
+        log("  [audit] skipped: no transcript")
+        return
+
     try:
         from sentiment.audit_llm import run_unified_audit
         audit_res = run_unified_audit(c["segments"], c.get("talk_ratio"))
