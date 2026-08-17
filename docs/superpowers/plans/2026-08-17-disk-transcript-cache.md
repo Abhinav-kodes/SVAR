@@ -645,3 +645,9 @@ git commit -m "docs: mark disk transcript cache complete"
 **Placeholder scan:** No TBD/TODO; every step has concrete code and commands.
 
 **Type consistency:** `sha1_of_file(path)->str`, `get_words(sha1, lang)->Optional[List[Dict]]`, `put_words(sha1, lang, words)->None`, `transcribe_words(audio, sr, language="hi")->Optional[List[Dict]]`, `build_diarized_transcript(segments, words)->List[Dict]` — identical names/signatures across Tasks 1-3. `CACHE_DIR`/`CACHE_TTL_DAYS` match spec. Language key is `"hi"` everywhere.
+---
+
+## Deviations recorded during execution
+
+- **Task 2, `test_build_diarized_transcript_maps_words`:** initial expectation was wrong — segments `[0.0, 1.0]` and `[1.0, 2.0]` (gap 0.0 ≤ max_gap 0.5) are merged by `_merge_segments`, so both words landed in one segment (`"namaste ji"`). Fixed the test to use segments `[0.0, 1.0]` / `[1.6, 2.6]` (gap 0.6 > 0.5) with the second word at `[1.8, 2.1]` — consistent with the plan's own `merges_small_gaps` test. Implementation was faithful to the original code.
+- **Task 4:** also flipped the Roadmap section header `## STT Cost Optimization 🟡 PARTIALLY DONE` → `🟢 COMPLETE` for consistency with the summary-table row.
