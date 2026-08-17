@@ -154,12 +154,12 @@ All components implemented, tested, and benchmarked. Benchmarked on 3 sample cal
 
 ---
 
-## STT Cost Optimization 🟡 PARTIALLY DONE
+## STT Cost Optimization 🟢 COMPLETE
 
 Chirp 3 V2 bills **per minute of audio sent** — and the pipeline used to send the entire call including silence, then re-bill it on every server restart. Two quick wins:
 
 - ✅ **VAD-gate what you send to Google (biggest win).** `_select_chunks` (sentiment/stt/stt_transcriber.py) now builds chunks only over speech regions using the existing VAD (`denoising/vad_basic.py`), with ~0.3s padding and merged gaps (≤0.5s). Cuts cost by roughly the silence ratio — typically 20–40% on call-center calls. Word timestamps already carry offsets, so segment mapping works unchanged. Legacy full-audio behavior available via `STT_VAD_DISABLED=1`.
-- **Persist transcripts to disk.** Final results persist in Postgres (keyed by filename), but raw transcripts are not cached — restarting the stack re-bills full STT on re-analysis. Save transcripts as `data/transcripts/<file-sha1>.json` and load before calling Google; same-file re-runs become free.
+- ✅ **Disk transcript cache.** `data/transcripts/<sha1>-<lang>.json` keyed by source-file sha1, 30-day TTL, config fingerprint invalidation, atomic writes (`SVAR_TRANSCRIPT_CACHE_DIR` overrides location). `stage_stt` loads the raw word stream before calling Google; same-file re-runs become free.
 
 ---
 
@@ -235,7 +235,7 @@ What happens when Gemini rate-limits or GCP STT fails? Today the pipeline would 
 | Unified Audit (Compliance + QA + CRM) | ✅ Complete | single Gemini call + local fallbacks |
 | Dashboard + Integration | ✅ 90% | React operator UI, sequential background pipeline, progress polling |
 | Phase 1: FastAPI + Redis Queue + Postgres | ✅ Complete | async FastAPI API, RQ job queue, worker processes, Postgres persistence |
-| STT Cost Optimization | 🟡 50% | ✅ VAD-gated chunks (`STT_VAD_DISABLED=1` escape hatch), 🔴 disk transcript cache |
+| STT Cost Optimization | 🟢 100% | ✅ VAD-gated chunks (`STT_VAD_DISABLED=1` escape hatch), ✅ disk transcript cache |
 | Phase 2: WebSockets (Pub/Sub) | 🔴 0% | Redis Pub/Sub → FastAPI → React push updates |
 | Phase 3: Docker Compose | 🔴 0% | API + worker Dockerfiles, compose stack |
 | Phase 4: Observability + Fault Tolerance | 🔴 0% | tenacity retries, Prometheus metrics |
@@ -243,7 +243,7 @@ What happens when Gemini rate-limits or GCP STT fails? Today the pipeline would 
 ### Remaining Work (priority order)
 1. ~~Guard against hallucinated audits~~ ✅ **Complete** — `stage_audit` skips the unified audit + fallbacks and records `audit_skipped = "no transcript"` when the transcript is empty (commits `d0cb0ef`, `2717f07`, `9e7ddda`)
 2. ~~VAD-gated STT chunks~~ ✅ **Complete** — `_select_chunks` sends only speech regions to Chirp 3; disable with `STT_VAD_DISABLED=1`
-3. **STT cost: disk transcript cache** — `data/transcripts/<file-sha1>.json`, free same-file re-analysis across restarts
+3. ~~STT cost: disk transcript cache~~ ✅ **Complete** — `data/transcripts/<sha1>-<lang>.json` keyed by source-file sha1, 30-day TTL, config fingerprint invalidation; `SVAR_TRANSCRIPT_CACHE_DIR` overrides location
 4. **Phase 2** — WebSocket real-time updates (replaces progress polling)
 5. **Phase 3** — Docker Compose deployment
 6. **Phase 4** — tenacity retries + Prometheus `/metrics`

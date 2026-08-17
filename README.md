@@ -157,16 +157,17 @@ Jobs are executed by a separate RQ worker process, and results persist in Postgr
 
 ## Environment Variables
 
-| Variable | Effect |
-|---|---|
-| `SVAR_PORT` | API server port (default `8050`) |
-| `SVAR_REDIS_URL` | Redis connection URL for the RQ queue and progress store (default `redis://localhost:6379/0`) |
-| `SVAR_DATABASE_URL` | PostgreSQL connection URL for results persistence (default `postgresql://svar:svar@localhost:5432/svar`) |
-| `LLM_AUDIT_DISABLED=1` | Skip unified Gemini audit (falls back to local compliance/QA/CRM) |
-| `LLM_COMPLIANCE_DISABLED=1` | Skip Gemini in compliance engine |
-| `LLM_CRM_DISABLED=1` | Skip Gemini CRM note generation |
-| `ROLE_INFERENCE_DISABLED=1` | Skip role inference (no agent/customer mapping) |
-| `STT_VAD_DISABLED=1` | Send full audio to STT instead of VAD-gated speech chunks |
+| Variable                    | Effect                                                                                                   |
+| -----------------------------| ----------------------------------------------------------------------------------------------------------|
+| `SVAR_PORT`                 | API server port (default `8050`)                                                                         |
+| `SVAR_REDIS_URL`            | Redis connection URL for the RQ queue and progress store (default `redis://localhost:6379/0`)            |
+| `SVAR_DATABASE_URL`         | PostgreSQL connection URL for results persistence (default `postgresql://svar:svar@localhost:5432/svar`) |
+| `LLM_AUDIT_DISABLED=1`      | Skip unified Gemini audit (falls back to local compliance/QA/CRM)                                        |
+| `LLM_COMPLIANCE_DISABLED=1` | Skip Gemini in compliance engine                                                                         |
+| `LLM_CRM_DISABLED=1`        | Skip Gemini CRM note generation                                                                          |
+| `ROLE_INFERENCE_DISABLED=1` | Skip role inference (no agent/customer mapping)                                                          |
+| `STT_VAD_DISABLED=1`        | Send full audio to STT instead of VAD-gated speech chunks                                                |
+| `SVAR_TRANSCRIPT_CACHE_DIR` | Override the disk transcript cache location (default: data/transcripts/)                                 |
 
 ---
 

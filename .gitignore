@@ -15,6 +15,7 @@ __pycache__/
 data/sample_calls/
 data/emotions/
 data/research_papers/
+data/transcripts/
 sentiment/data/*.csv
 sentiment/data/*.csv.gz
 
