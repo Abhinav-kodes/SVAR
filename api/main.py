@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 import urllib.parse
 
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket
@@ -56,7 +57,8 @@ JOB_ALIVE_STATUSES = {"queued", "started", "deferred", "scheduled"}
 
 
 def _rq_job_id(filename: str) -> str:
-    return f"svar:{filename}"
+    safe = re.sub(r"[^A-Za-z0-9_-]", "_", filename)
+    return f"svar-{safe}"
 
 
 
