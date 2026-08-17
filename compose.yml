@@ -1,0 +1,67 @@
+services:
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: svar
+      POSTGRES_PASSWORD: svar
+      POSTGRES_DB: svar
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U svar"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build: .
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8050
+    ports:
+      - "8050:8050"
+    environment:
+      SVAR_REDIS_URL: redis://redis:6379/0
+      SVAR_DATABASE_URL: postgresql://svar:svar@postgres:5432/svar
+    volumes:
+      - ./credentials:/app/credentials:ro
+      - ./data:/app/data:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: python -m pipeline.worker
+    gpus: all
+    environment:
+      SVAR_REDIS_URL: redis://redis:6379/0
+      SVAR_DATABASE_URL: postgresql://svar:svar@postgres:5432/svar
+      HF_TOKEN: ${HF_TOKEN:-}
+      PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+      CUDA_MODULE_LOADING: LAZY
+    volumes:
+      - ./credentials:/app/credentials:ro
+      - ./data:/app/data
+      - hf_cache:/root/.cache/huggingface
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  hf_cache:
