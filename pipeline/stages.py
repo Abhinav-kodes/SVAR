@@ -122,8 +122,17 @@ def stage_stt(ctx: JobContext):
     if "segments" not in c:
         stage_diarize(ctx)
     stt = _get_stt()
-    transcript = stt.transcribe_diarized_segments(c["segments"], c["clean_audio"], c["sr"], language="hi")
-    c["segments"] = transcript
+    from sentiment.stt import transcript_cache
+    sha1 = transcript_cache.sha1_of_file(ctx.filepath)
+    words = transcript_cache.get_words(sha1, "hi")
+    if words is None:
+        words = stt.transcribe_words(c["clean_audio"], c["sr"], language="hi")
+        if words:
+            transcript_cache.put_words(sha1, "hi", words)
+        log(f"  [stt] Chirp 3 API ({len(words) if words else 0} words)")
+    else:
+        log(f"  [stt] transcript cache hit ({len(words)} words)")
+    c["segments"] = stt.build_diarized_transcript(c["segments"], words)
     c["transcribed"] = True
 
     from sentiment.role_resolver_llm import GeminiRoleResolver
