@@ -42,6 +42,13 @@ DIST_MIME_TYPES = {
 }
 
 JOB_TIMEOUT_SECONDS = 3600
+JOB_ALIVE_STATUSES = {"queued", "started", "deferred", "scheduled"}
+
+
+def _rq_job_id(filename: str) -> str:
+    return f"svar:{filename}"
+
+
 
 
 def _default_enqueue(filename: str):
@@ -49,8 +56,24 @@ def _default_enqueue(filename: str):
     from rq import Queue
     conn = redis.Redis.from_url(REDIS_URL)
     Queue("svar", connection=conn).enqueue(
-        "pipeline.worker.run_pipeline_job", filename, job_timeout=JOB_TIMEOUT_SECONDS
+        "pipeline.worker.run_pipeline_job",
+        filename,
+        job_id=_rq_job_id(filename),
+        job_timeout=JOB_TIMEOUT_SECONDS,
     )
+
+
+def _default_job_alive(filename: str) -> bool:
+    import redis
+    from rq import Job
+    from rq.exceptions import InvalidJobOperation, NoSuchJobError
+
+    conn = redis.Redis.from_url(REDIS_URL)
+    try:
+        job = Job.fetch(_rq_job_id(filename), connection=conn)
+        return job.get_status() in JOB_ALIVE_STATUSES
+    except (NoSuchJobError, InvalidJobOperation):
+        return False
 
 
 class _LazyResultsRepository:
@@ -70,10 +93,12 @@ def create_app(
     job_store: JobStore = None,
     results_repo: ResultsRepository = None,
     enqueue=None,
+    job_alive=None,
 ) -> FastAPI:
     job_store = job_store or RedisJobStore(REDIS_URL)
     results_repo = results_repo or _LazyResultsRepository()
     enqueue = enqueue or _default_enqueue
+    job_alive = job_alive or _default_job_alive
 
     app = FastAPI(title="SVAR API")
     app.state.job_store = job_store
@@ -95,22 +120,32 @@ def create_app(
         filepath = os.path.join(SAMPLE_CALLS_DIR, req.filename)
         if not os.path.exists(filepath):
             return JSONResponse(status_code=404, content={"error": f"{req.filename} not found"})
-        p = job_store.get(req.filename)
-        if p and p["status"] == "running":
-            return {"status": "running", "message": "Pipeline already running"}
         if results_repo.get(req.filename) is not None:
+            job_store.create(req.filename)
+            job_store.finish(req.filename)
             return {"status": "completed", "message": "Already analyzed"}
+        p = job_store.get(req.filename)
+        if p and p["status"] == "running" and job_alive(req.filename):
+            return {"status": "running", "message": "Pipeline already running"}
         try:
             job_store.create(req.filename)
             enqueue(req.filename)
         except Exception as e:
+            try:
+                job_store.delete(req.filename)
+            except Exception:
+                pass
             return JSONResponse(status_code=503, content={"error": f"queue unavailable: {e}"})
         return {"status": "queued", "message": "Pipeline queued"}
 
     @app.get("/api/progress")
     def progress(file: str = ""):
         p = job_store.get(file)
-        return p or {"status": "idle", "percent": 0, "stages": {}}
+        if p:
+            return p
+        if file and results_repo.get(file) is not None:
+            return {"status": "completed", "current_stage": "", "percent": 100, "stages": {}}
+        return {"status": "idle", "percent": 0, "stages": {}}
 
     @app.post("/api/results")
     def results(req: AnalyzeRequest):

@@ -40,6 +40,9 @@ class JobStore:
     def get(self, filename: str) -> Optional[dict]:
         raise NotImplementedError
 
+    def delete(self, filename: str) -> None:
+        raise NotImplementedError
+
 
 class InMemoryJobStore(JobStore):
     def __init__(self):
@@ -81,6 +84,10 @@ class InMemoryJobStore(JobStore):
         with self._lock:
             p = self._jobs.get(filename)
             return dict(p) if p else None
+
+    def delete(self, filename: str) -> None:
+        with self._lock:
+            self._jobs.pop(filename, None)
 
 
 class RedisJobStore(JobStore):
@@ -130,3 +137,6 @@ class RedisJobStore(JobStore):
     def get(self, filename: str) -> Optional[dict]:
         raw = self._redis.get(self._key(filename))
         return json.loads(raw) if raw else None
+
+    def delete(self, filename: str) -> None:
+        self._redis.delete(self._key(filename))
