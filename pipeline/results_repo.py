@@ -1,3 +1,4 @@
+import os
 import threading
 from typing import Dict, Optional
 
@@ -31,9 +32,13 @@ class InMemoryResultsRepository(ResultsRepository):
 
 
 class PostgresResultsRepository(ResultsRepository):
-    def __init__(self, url: str = "postgresql://svar:svar@localhost:5432/svar"):
+    @staticmethod
+    def _default_url() -> str:
+        return os.environ.get("SVAR_DATABASE_URL", "postgresql://svar:svar@localhost:5432/svar")
+
+    def __init__(self, url: str = None):
         import psycopg
-        self._conn = psycopg.connect(url, autocommit=True)
+        self._conn = psycopg.connect(url or self._default_url(), autocommit=True)
 
     def init_db(self) -> None:
         self._conn.execute(

@@ -50,3 +50,12 @@ class TestPostgresResultsRepository:
         self.repo.save("a.mp3", {"v": 1})
         self.repo.save("a.mp3", {"v": 2})
         assert self.repo.get("a.mp3")["v"] == 2
+
+def test_default_url_reads_svar_database_url(monkeypatch):
+    monkeypatch.setenv("SVAR_DATABASE_URL", "postgresql://u:p@db:5432/x")
+    assert PostgresResultsRepository._default_url() == "postgresql://u:p@db:5432/x"
+
+
+def test_default_url_falls_back_to_localhost(monkeypatch):
+    monkeypatch.delenv("SVAR_DATABASE_URL", raising=False)
+    assert PostgresResultsRepository._default_url() == "postgresql://svar:svar@localhost:5432/svar"

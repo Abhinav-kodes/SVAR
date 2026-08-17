@@ -1,4 +1,5 @@
 import json
+import os
 import threading
 import time
 from typing import Dict, Optional
@@ -93,9 +94,13 @@ class InMemoryJobStore(JobStore):
 class RedisJobStore(JobStore):
     TTL_SECONDS = 86400
 
-    def __init__(self, url: str = "redis://localhost:6379/0"):
+    @staticmethod
+    def _default_url() -> str:
+        return os.environ.get("SVAR_REDIS_URL", "redis://localhost:6379/0")
+
+    def __init__(self, url: str = None):
         import redis
-        self._redis = redis.Redis.from_url(url)
+        self._redis = redis.Redis.from_url(url or self._default_url())
         self._lock = threading.Lock()
 
     def _key(self, filename: str) -> str:

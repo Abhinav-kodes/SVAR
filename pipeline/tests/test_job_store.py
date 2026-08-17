@@ -1,4 +1,4 @@
-from pipeline.job_store import InMemoryJobStore, STAGES
+from pipeline.job_store import InMemoryJobStore, RedisJobStore, STAGES
 
 
 def make_store():
@@ -49,3 +49,13 @@ def test_finish_error():
 
 def test_get_missing_returns_none():
     assert make_store().get("nope.mp3") is None
+
+
+def test_redis_default_url_reads_svar_redis_url(monkeypatch):
+    monkeypatch.setenv("SVAR_REDIS_URL", "redis://r:6379/1")
+    assert RedisJobStore._default_url() == "redis://r:6379/1"
+
+
+def test_redis_default_url_falls_back_to_localhost(monkeypatch):
+    monkeypatch.delenv("SVAR_REDIS_URL", raising=False)
+    assert RedisJobStore._default_url() == "redis://localhost:6379/0"
