@@ -233,8 +233,8 @@ What happens when Gemini rate-limits or GCP STT fails? Today the pipeline would 
 | STT + Emotion + Roles | ✅ Complete | Chirp 3 V2, Gemini role resolver, translate+DistilRoBERTa, acoustic profiles, fusion |
 | Unified Audit (Compliance + QA + CRM) | ✅ Complete | single Gemini call + local fallbacks |
 | Dashboard + Integration | ✅ 90% | React operator UI, sequential background pipeline, progress polling |
+| Phase 1: FastAPI + Redis Queue + Postgres | ✅ Complete | async FastAPI API, RQ job queue, worker processes, Postgres persistence |
 | STT Cost Optimization | 🔴 0% | VAD-gated chunks, disk transcript cache |
-| Phase 1: FastAPI + Redis Queue + Postgres | 🔴 0% | async API, job queue, worker processes, persistence |
 | Phase 2: WebSockets (Pub/Sub) | 🔴 0% | Redis Pub/Sub → FastAPI → React push updates |
 | Phase 3: Docker Compose | 🔴 0% | API + worker Dockerfiles, compose stack |
 | Phase 4: Observability + Fault Tolerance | 🔴 0% | tenacity retries, Prometheus metrics |
@@ -243,10 +243,9 @@ What happens when Gemini rate-limits or GCP STT fails? Today the pipeline would 
 1. **Guard against hallucinated audits** — skip/flag the unified audit when the STT transcript is empty (currently Gemini confabulates results on empty transcripts)
 2. **STT cost: VAD-gated chunks** — send only speech regions to Chirp 3 (cut billed minutes by the silence ratio, ~20–40%)
 3. **STT cost: disk transcript cache** — `data/transcripts/<file-sha1>.json`, free same-file re-analysis across restarts
-4. **Phase 1** — FastAPI backend + Redis job queue + PostgreSQL persistence
-5. **Phase 2** — WebSocket real-time updates (replaces progress polling)
-6. **Phase 3** — Docker Compose deployment
-7. **Phase 4** — tenacity retries + Prometheus `/metrics`
+4. **Phase 2** — WebSocket real-time updates (replaces progress polling)
+5. **Phase 3** — Docker Compose deployment
+6. **Phase 4** — tenacity retries + Prometheus `/metrics`
 
 ---
 
@@ -266,6 +265,8 @@ Stages were made sequential (was: ThreadPoolExecutor) to respect the 4GB GPU —
 
 ### Why FastAPI + Redis + Postgres? (production phase)
 The ML models are done — the missing piece is plumbing. FastAPI gives async I/O and industry-standard API patterns; Redis decouples job intake from execution (server returns a `job_id` immediately); Postgres persists results; WebSockets replace polling; Docker makes the stack reproducible; Prometheus + retries make it observable and resilient.
+
+**Phase 1 is implemented** (Aug 2026): the API enqueues jobs on `POST /api/analyze` and returns immediately; a separate RQ worker (`python -m pipeline.worker`) executes denoise → diarize → STT → emotion → audit off the Redis queue; final results persist in Postgres keyed by filename and survive restarts; progress is still polled via `/api/progress`. The legacy `http.server` dashboard server has been retired.
 
 ---
 

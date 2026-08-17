@@ -91,13 +91,30 @@ Place Gemini API keys at `credentials/gemini-api-keys.json`:
 {"keys": ["key1", "key2", ...]}
 ```
 
-### 3. Launch Dashboard
+### 3. Launch (Phase 1 — FastAPI + Redis + Postgres)
 
+Infra first (two containers):
 ```bash
-python dashboard/dashboard_server.py
+docker run -d --name svar-redis -p 6379:6379 redis:7
+docker run -d --name svar-pg \
+  -e POSTGRES_USER=svar -e POSTGRES_PASSWORD=svar -e POSTGRES_DB=svar \
+  -p 5432:5432 postgres:16
 ```
 
-Open http://localhost:8050, select a sample call from `data/sample_calls/`, click **Analyze**. Progress is tracked per stage via `/api/progress`.
+API server:
+```bash
+python -m uvicorn api.main:app --port 8050
+```
+
+Pipeline worker (one per GPU):
+```bash
+python -m pipeline.worker
+```
+
+Open http://localhost:8050, select a sample call, click **Analyze**.
+The API enqueues the job and returns immediately; the worker runs
+denoise → diarize → STT → emotion → audit and persists results to Postgres.
+Progress polling is unchanged (`/api/progress`).
 
 ### 4. Frontend Development (optional)
 
@@ -123,12 +140,15 @@ python -m sentiment.pipeline      # Full sentiment pipeline
 | Endpoint | Description |
 |---|---|
 | `GET /` | Dashboard (built React app) |
+| `GET /health` | Liveness check — returns `{"status": "ok"}` if the API is up |
 | `GET /api/sample_calls` | List available audio files |
 | `GET /api/progress?file=X` | Pipeline progress polling |
-| `POST /api/analyze` | Start background pipeline (denoise → diarize → stt → acoustic → text_emo → audit → fusion) |
+| `POST /api/analyze` | Enqueue pipeline job (denoise → diarize → stt → acoustic → text_emo → audit → fusion); returns immediately with `{status: "queued"\|"running"\|"completed", message}` |
 | `POST /api/results` | Complete per-segment results |
 | `POST /api/denoise` `/api/diarize` `/api/transcribe` `/api/emotion` `/api/compliance` `/api/qa-score` `/api/crm-note` | Cached per-stage results |
 | `GET /audio/<file>` | Serve raw audio files |
+
+Jobs are executed by a separate RQ worker process, and results persist in Postgres across restarts.
 
 ---
 
