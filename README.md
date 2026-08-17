@@ -117,7 +117,9 @@ python -m pipeline.worker
 Open http://localhost:8050, select a sample call, click **Analyze**.
 The API enqueues the job and returns immediately; the worker runs
 denoise → diarize → STT → emotion → audit and persists results to Postgres.
-Progress polling is unchanged (`/api/progress`).
+Progress updates are pushed live: the worker publishes stage transitions to
+Redis Pub/Sub, the dashboard receives them over `/ws/progress`, and
+`/api/progress` is kept for compatibility.
 
 ### 4. Frontend Development (optional)
 
@@ -145,7 +147,8 @@ python -m sentiment.pipeline      # Full sentiment pipeline
 | `GET /` | Dashboard (built React app) |
 | `GET /health` | Liveness check — returns `{"status": "ok"}` if the API is up |
 | `GET /api/sample_calls` | List available audio files |
-| `GET /api/progress?file=X` | Pipeline progress polling |
+| `GET /api/progress?file=X` | Pipeline progress polling (kept for compatibility) |
+| `GET /ws/progress?file=X` | WebSocket — live pipeline progress pushes |
 | `POST /api/analyze` | Enqueue pipeline job (denoise → diarize → stt → acoustic → text_emo → compliance → fusion → qa → crm); returns immediately with `{status: "queued"\|"running"\|"completed", message}` |
 | `POST /api/results` | Complete per-segment results |
 | `POST /api/denoise` `/api/diarize` `/api/transcribe` `/api/emotion` `/api/compliance` `/api/qa-score` `/api/crm-note` | Cached per-stage results |

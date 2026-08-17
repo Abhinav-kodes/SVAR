@@ -648,3 +648,6 @@ Expected: previous baseline 80 passed / 3 skipped / 4 failed + 4 ws tests + 7 pu
 git add Roadmap.md README.md
 git commit -m "docs: mark Phase 2 websocket progress complete"
 ```
+## Deviations recorded during execution
+
+- **Task 2 — runner must guard publishes too:** the plan's `test_raising_publisher_does_not_fail_pipeline` could not pass with the plan's implementation: the "running" publish at the top of `_timed_stage` and the publish in `run_pipeline`'s error path were outside any `try/except`, so a raising publisher escaped. Since the plan's Global Constraints state "Publishing must never fail a pipeline stage", the runner now routes every publish through a `_safe_publish(publisher, filename, progress)` helper (catches all exceptions, logs a warning, continues). `RedisProgressPublisher` still swallows its own errors at the source.
