@@ -41,12 +41,16 @@ DIST_MIME_TYPES = {
     ".ttf": "font/ttf",
 }
 
+JOB_TIMEOUT_SECONDS = 3600
+
 
 def _default_enqueue(filename: str):
     import redis
     from rq import Queue
     conn = redis.Redis.from_url(REDIS_URL)
-    Queue("svar", connection=conn).enqueue("pipeline.worker.run_pipeline_job", filename)
+    Queue("svar", connection=conn).enqueue(
+        "pipeline.worker.run_pipeline_job", filename, job_timeout=JOB_TIMEOUT_SECONDS
+    )
 
 
 class _LazyResultsRepository:
