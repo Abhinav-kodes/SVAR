@@ -63,4 +63,7 @@ class PostgresResultsRepository(ResultsRepository):
         row = self._conn.execute(
             "SELECT results FROM calls WHERE filename = %s", (filename,)
         ).fetchone()
-        return json.loads(row[0]) if row else None
+        if not row:
+            return None
+        val = row[0]
+        return json.loads(val) if isinstance(val, str) else val
