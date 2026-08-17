@@ -1,0 +1,22 @@
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch
+torchaudio
+torchvision
+pyannote.audio
+speechbrain
+librosa
+soundfile
+numpy
+scikit-learn
+joblib
+google-cloud-speech
+transformers
+sentencepiece
+pyyaml
+fastapi
+uvicorn
+redis
+rq
+psycopg[binary]
+httpx
+pytest
