@@ -3,12 +3,10 @@ import time
 from typing import List, Optional
 
 from api.config import SAMPLE_CALLS_DIR
-from pipeline.job_store import JobStore, RedisJobStore, STAGES
+from pipeline.job_store import JobStore, RedisJobStore
 from pipeline.results_repo import PostgresResultsRepository, ResultsRepository
 from pipeline import stages
 from pipeline.stages import JobContext, free_gpu
-
-STAGE_ORDER = [s["id"] for s in STAGES]
 
 
 def _timed_stage(filename: str, stage_id: str, job_store: JobStore, fn):

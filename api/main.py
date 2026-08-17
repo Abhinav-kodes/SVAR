@@ -182,7 +182,7 @@ def create_app(
     for route, keys in STAGE_SLICES.items():
 
         @app.post(f"/api/{route}")
-        def stage_endpoint(req: AnalyzeRequest, _keys: list = Query(keys), _route: str = route):
+        def stage_endpoint(req: AnalyzeRequest, _keys: list = Query(keys)):
             res = results_repo.get(req.filename)
             if res is None:
                 return JSONResponse(status_code=404, content={"error": "no results yet"})
@@ -206,9 +206,9 @@ def create_app(
 
     @app.get("/")
     def index():
-        dist_index = os.path.join(dist, "index.html") if os.path.isdir(dist) else None
+        dist_index = os.path.join(dist, "index.html")
         fallback = os.path.join(DASHBOARD_DIR, "index.html")
-        target = dist_index if dist_index and os.path.exists(dist_index) else fallback
+        target = dist_index if os.path.exists(dist_index) else fallback
         if not os.path.exists(target):
             return JSONResponse(status_code=404, content={"error": "dashboard not built"})
         return FileResponse(target, media_type="text/html")

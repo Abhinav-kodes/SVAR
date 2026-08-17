@@ -1,5 +1,3 @@
-import pytest
-
 from pipeline.job_store import InMemoryJobStore, STAGES
 
 
