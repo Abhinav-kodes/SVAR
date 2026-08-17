@@ -3,6 +3,7 @@ import pytest
 from pipeline.job_store import InMemoryJobStore, STAGES
 from pipeline.results_repo import InMemoryResultsRepository
 from pipeline import runner, stages
+from pipeline.progress_pubsub import NoopProgressPublisher
 
 STAGE_FN = {"text_emo": "stage_text_emotion", "compliance": "stage_audit"}
 
@@ -14,7 +15,7 @@ def make_deps():
 def test_runner_skips_missing_file(tmp_path, monkeypatch):
     job_store, repo = make_deps()
     with pytest.raises(FileNotFoundError):
-        runner.run_pipeline("nope.mp3", job_store=job_store, results_repo=repo)
+        runner.run_pipeline("nope.mp3", job_store=job_store, results_repo=repo, publisher=NoopProgressPublisher())
 
 
 def test_runner_full_flow_with_mocked_stages(tmp_path, monkeypatch):
@@ -33,7 +34,7 @@ def test_runner_full_flow_with_mocked_stages(tmp_path, monkeypatch):
 
     path = tmp_path / "x.wav"
     path.write_bytes(b"not really audio")
-    results = runner.run_pipeline("x.wav", job_store=job_store, results_repo=repo)
+    results = runner.run_pipeline("x.wav", job_store=job_store, results_repo=repo, publisher=NoopProgressPublisher())
 
     assert calls == [s["id"] for s in STAGES]
     assert job_store.get("x.wav")["status"] == "completed"
@@ -56,6 +57,6 @@ def test_runner_includes_audit_skipped(tmp_path, monkeypatch):
 
     path = tmp_path / "x.wav"
     path.write_bytes(b"not really audio")
-    results = runner.run_pipeline("x.wav", job_store=job_store, results_repo=repo)
+    results = runner.run_pipeline("x.wav", job_store=job_store, results_repo=repo, publisher=NoopProgressPublisher())
 
     assert results["audit_skipped"] == "no transcript"
