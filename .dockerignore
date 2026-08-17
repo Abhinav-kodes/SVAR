@@ -1,0 +1,12 @@
+venv/
+.venv/
+.git/
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.env
+credentials/
+dashboard/dist/
+data/transcripts/
