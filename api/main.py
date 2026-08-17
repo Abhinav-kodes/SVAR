@@ -1,7 +1,14 @@
 import os
 import urllib.parse
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.exception_handlers import (
+    http_exception_handler as _default_http_exception_handler,
+)
+from fastapi.exception_handlers import (
+    request_validation_exception_handler as _default_request_validation_exception_handler,
+)
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -103,6 +110,24 @@ def create_app(
     app = FastAPI(title="SVAR API")
     app.state.job_store = job_store
     app.state.results_repo = results_repo
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        if not request.url.path.startswith("/api/"):
+            return await _default_request_validation_exception_handler(request, exc)
+        return JSONResponse(status_code=422, content={"error": f"validation error: {exc}"})
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        if not request.url.path.startswith("/api/"):
+            return await _default_http_exception_handler(request, exc)
+        return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        if not request.url.path.startswith("/api/"):
+            raise exc
+        return JSONResponse(status_code=500, content={"error": str(exc)})
 
     @app.get("/health")
     def health():

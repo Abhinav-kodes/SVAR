@@ -159,3 +159,28 @@ def test_audio_serving(client, monkeypatch, tmp_path):
     assert res.content == b"audio"
     assert res.headers["content-type"] == "audio/mpeg"
     assert client.get("/audio/missing.mp3").status_code == 404
+
+
+def test_api_unknown_route_returns_error_body(client):
+    res = client.get("/api/nope")
+    assert res.status_code == 404
+    assert res.json() == {"error": "Not found"}
+
+
+def test_api_validation_error_returns_error_body(client):
+    res = client.post("/api/analyze", json={})
+    assert res.status_code == 422
+    assert "error" in res.json()
+
+
+def test_api_unhandled_exception_returns_error_body():
+    class ExplodingRepo:
+        def get(self, filename):
+            raise RuntimeError("boom")
+
+    app = create_app(job_store=InMemoryJobStore(), results_repo=ExplodingRepo(), enqueue=lambda f: None)
+    client = TestClient(app, raise_server_exceptions=False)
+    res = client.post("/api/results", json={"filename": "a.mp3"})
+    assert res.status_code == 500
+    assert res.json() == {"error": "boom"}
+
