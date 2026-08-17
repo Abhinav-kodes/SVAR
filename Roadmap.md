@@ -159,7 +159,7 @@ All components implemented, tested, and benchmarked. Benchmarked on 3 sample cal
 Chirp 3 V2 bills **per minute of audio sent** — and the pipeline currently sends the entire call including silence, then re-bills it on every server restart. Two quick wins:
 
 - **VAD-gate what you send to Google (biggest win).** `_transcribe_api` (sentiment/stt/stt_transcriber.py:102-108) chunks the entire file — every second of hold music, dead air, and silence between turns is billed. Build chunks only over speech regions using the existing VAD (`denoising/vad_basic.py`), with ~0.3s padding and merged gaps. Cuts cost by roughly the silence ratio — typically 20–40% on call-center calls. Word timestamps already carry offsets, so segment mapping works unchanged.
-- **Persist transcripts to disk.** `_cache` (dashboard/dashboard_server.py:36) is in-memory only — restarting the server re-bills full STT on re-analysis. Save transcripts as `data/transcripts/<file-sha1>.json` and load before calling Google; same-file re-runs become free.
+- **Persist transcripts to disk.** Final results persist in Postgres (keyed by filename), but raw transcripts are not cached — restarting the stack re-bills full STT on re-analysis. Save transcripts as `data/transcripts/<file-sha1>.json` and load before calling Google; same-file re-runs become free.
 
 ---
 
@@ -170,13 +170,14 @@ Chirp 3 V2 bills **per minute of audio sent** — and the pipeline currently sen
 - Task-first operator workflow: Summary, Denoising, Diarization, Transcript, Emotion, Compliance, QA, CRM views
 - Builds to `dashboard/dist` (served by the Python server); dev mode on :5173 with `/api` + `/audio` proxy to :8050
 
-### Python Dashboard Server (`dashboard/dashboard_server.py`, port 8050)
-- Serves built React app (fallback `dashboard/index.html`)
-- `POST /api/analyze` — sequential background pipeline (daemon thread + lock)
+### FastAPI + RQ Backend (`api/main.py`, port 8050)
+- Serves the built React app (fallback `dashboard/index.html`)
+- `POST /api/analyze` — enqueues the pipeline job on the Redis queue (RQ) and returns immediately
 - `GET /api/progress?file=X` — stage-by-stage progress polling
-- Stage order: `denoise → diarize → stt → acoustic → text_emo → audit → fusion`
-- GPU freed between stages (`_free_gpu` — models unloaded + `torch.cuda.empty_cache`)
+- Stage order: `denoise → diarize → stt → acoustic → text_emo → compliance → fusion → qa → crm`
+- Pipeline runs in a separate worker process (`python -m pipeline.worker`); GPU freed between stages
 - Individual cached endpoints: `/api/denoise`, `/api/diarize`, `/api/transcribe`, `/api/emotion`, `/api/compliance`, `/api/qa-score`, `/api/crm-note`, `/api/results`
+- Progress lives in Redis; final results persist in Postgres keyed by filename (survive restarts)
 
 ---
 

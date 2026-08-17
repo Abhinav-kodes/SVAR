@@ -44,7 +44,7 @@ Raw Audio
 └───────────────────────────────────────────┘
 ```
 
-The pipeline runs sequentially in a background thread (see `_run_pipeline` in `dashboard/dashboard_server.py`).
+The pipeline runs as a job on the Redis queue, executed by a separate RQ worker process (see `pipeline/worker.py`); results persist in Postgres.
 
 ---
 
@@ -64,7 +64,10 @@ The pipeline runs sequentially in a background thread (see `_run_pipeline` in `d
 | `sentiment/compliance_engine.py` | Keyword fast-path + Gemini verification (fallback when unified audit unavailable). |
 | `sentiment/qa_scorer.py` | 5-factor weighted QA scoring (fallback). |
 | `sentiment/crm_note_generator.py` | TF-IDF extractive CRM summarizer (fallback). |
-| `dashboard/dashboard_server.py` | Python HTTP server (port 8050) — serves the built React app, runs the background pipeline, exposes JSON APIs. |
+| `api/main.py` | FastAPI backend (port 8050) — serves the built React app, enqueues pipeline jobs on the Redis queue (RQ), exposes JSON APIs. |
+| `pipeline/worker.py` | RQ worker — pulls pipeline jobs off the Redis queue, runs the stages, persists results to Postgres. |
+| Redis | RQ job queue + pipeline progress store. |
+| PostgreSQL | Persistent per-call results store (survives restarts). |
 | `dashboard-ui/` | React 19 + Vite + Tailwind v4 operator dashboard. Builds to `dashboard/dist`. |
 | `docs/` | Annotation guidelines. |
 
@@ -143,7 +146,7 @@ python -m sentiment.pipeline      # Full sentiment pipeline
 | `GET /health` | Liveness check — returns `{"status": "ok"}` if the API is up |
 | `GET /api/sample_calls` | List available audio files |
 | `GET /api/progress?file=X` | Pipeline progress polling |
-| `POST /api/analyze` | Enqueue pipeline job (denoise → diarize → stt → acoustic → text_emo → audit → fusion); returns immediately with `{status: "queued"\|"running"\|"completed", message}` |
+| `POST /api/analyze` | Enqueue pipeline job (denoise → diarize → stt → acoustic → text_emo → compliance → fusion → qa → crm); returns immediately with `{status: "queued"\|"running"\|"completed", message}` |
 | `POST /api/results` | Complete per-segment results |
 | `POST /api/denoise` `/api/diarize` `/api/transcribe` `/api/emotion` `/api/compliance` `/api/qa-score` `/api/crm-note` | Cached per-stage results |
 | `GET /audio/<file>` | Serve raw audio files |
@@ -156,6 +159,9 @@ Jobs are executed by a separate RQ worker process, and results persist in Postgr
 
 | Variable | Effect |
 |---|---|
+| `SVAR_PORT` | API server port (default `8050`) |
+| `SVAR_REDIS_URL` | Redis connection URL for the RQ queue and progress store (default `redis://localhost:6379/0`) |
+| `SVAR_DATABASE_URL` | PostgreSQL connection URL for results persistence (default `postgresql://svar:svar@localhost:5432/svar`) |
 | `LLM_AUDIT_DISABLED=1` | Skip unified Gemini audit (falls back to local compliance/QA/CRM) |
 | `LLM_COMPLIANCE_DISABLED=1` | Skip Gemini in compliance engine |
 | `LLM_CRM_DISABLED=1` | Skip Gemini CRM note generation |
