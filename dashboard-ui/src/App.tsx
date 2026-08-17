@@ -57,41 +57,46 @@ export const App: React.FC = () => {
   }, []);
 
 
-  // Poll progress
-  const pollProgress = useCallback(
-    async (filename: string) => {
-      try {
-        const res = await fetch(`/api/progress?file=${encodeURIComponent(filename)}`);
-        if (!res.ok) return;
-        const p: ProgressState = await res.json();
-        setProgress(p);
-
-        if (p.status === 'completed' || p.status === 'error') {
-          setIsAnalyzing(false);
-          if (p.status === 'completed') {
-            await fetchAllResults(filename);
-          }
-        }
-      } catch (err) {
-        console.error('Error polling progress:', err);
-      }
-    },
-    [fetchAllResults]
-  );
-
-  // Poll loop effect
+  // Live progress over WebSocket (replaces 1.5s polling)
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
-    if (isAnalyzing && activeFile) {
-      interval = setInterval(() => {
-        pollProgress(activeFile);
-      }, 1500);
-      pollProgress(activeFile);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
+    if (!isAnalyzing || !activeFile) return;
+    let ws: WebSocket | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let tornDown = false;
+    let receivedTerminal = false;
+
+    const connect = () => {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${proto}//${location.host}/ws/progress?file=${encodeURIComponent(activeFile)}`);
+      ws.onmessage = (ev) => {
+        try {
+          const p: ProgressState = JSON.parse(ev.data);
+          setProgress(p);
+          if (p.status === 'completed' || p.status === 'error') {
+            receivedTerminal = true;
+            setIsAnalyzing(false);
+            if (p.status === 'completed') {
+              fetchAllResults(activeFile);
+            }
+          }
+        } catch (err) {
+          console.error('Error parsing progress message:', err);
+        }
+      };
+      ws.onclose = () => {
+        if (!tornDown && !receivedTerminal) {
+          timer = setTimeout(connect, 1000);
+        }
+      };
     };
-  }, [isAnalyzing, activeFile, pollProgress]);
+    connect();
+
+    return () => {
+      tornDown = true;
+      if (timer) clearTimeout(timer);
+      if (ws) ws.close();
+    };
+  }, [isAnalyzing, activeFile, fetchAllResults]);
 
   // Handle call selection change
   const handleSelectFile = (filename: string) => {
