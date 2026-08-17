@@ -29,6 +29,23 @@ def _load_keys() -> List[str]:
     return []
 
 
+def _build_batch_input(segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Build the Gemini batch input, dropping segments with no text."""
+    batch_input = []
+    for i, seg in enumerate(segments):
+        text = seg.get("text", "").strip()
+        if not text:
+            continue
+        batch_input.append({
+            "index": i,
+            "speaker": seg.get("speaker", "unknown"),
+            "text": text,
+            "start": seg.get("start_time_s", seg.get("start", 0)),
+            "end": seg.get("end_time_s", seg.get("end", 0)),
+        })
+    return batch_input
+
+
 class GeminiAuditEngine:
     """Thread-safe Gemini Flash engine performing Compliance, QA Scoring & CRM Generation in ONE call."""
 
@@ -58,15 +75,10 @@ class GeminiAuditEngine:
         if not self.enabled or not segments:
             return None
 
-        batch_input = []
-        for i, seg in enumerate(segments):
-            batch_input.append({
-                "index": i,
-                "speaker": seg.get("speaker", "unknown"),
-                "text": seg.get("text", "").strip(),
-                "start": seg.get("start_time_s", seg.get("start", 0)),
-                "end": seg.get("end_time_s", seg.get("end", 0)),
-            })
+        batch_input = _build_batch_input(segments)
+        if not batch_input:
+            print("[audit_engine] Skipped unified audit: empty transcript")
+            return None
 
         user_msg = json.dumps(batch_input, ensure_ascii=False)
 
