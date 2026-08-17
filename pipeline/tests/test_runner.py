@@ -39,3 +39,23 @@ def test_runner_full_flow_with_mocked_stages(tmp_path, monkeypatch):
     assert job_store.get("x.wav")["status"] == "completed"
     assert repo.get("x.wav") is not None
     assert results["processing_time_s"] >= 0
+
+
+def test_runner_includes_audit_skipped(tmp_path, monkeypatch):
+    job_store, repo = make_deps()
+    monkeypatch.setattr(runner, "SAMPLE_CALLS_DIR", str(tmp_path))
+    for sid in [s["id"] for s in STAGES]:
+        def make_stage(sid=sid):
+            def stage(ctx):
+                if sid == "crm":
+                    ctx.cache["audit_skipped"] = "no transcript"
+            return stage
+        monkeypatch.setattr(stages, STAGE_FN.get(sid, f"stage_{sid}"), make_stage())
+
+    monkeypatch.setattr(stages, "free_gpu", lambda label="": None)
+
+    path = tmp_path / "x.wav"
+    path.write_bytes(b"not really audio")
+    results = runner.run_pipeline("x.wav", job_store=job_store, results_repo=repo)
+
+    assert results["audit_skipped"] == "no transcript"

@@ -63,6 +63,7 @@ def run_pipeline(
             "compliance": ctx.cache.get("compliance"),
             "qa": ctx.cache.get("qa"),
             "crm_note": ctx.cache.get("crm_note"),
+            "audit_skipped": ctx.cache.get("audit_skipped"),
         }
         results_repo.save(filename, results)
         job_store.finish(filename)
