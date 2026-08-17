@@ -43,7 +43,6 @@ Denoised Audio
 | `change_detector.py` | ML-based false-split merger + single-speaker detection (trained `change_detector_model.joblib`) |
 | `confidence.py` | Silhouette-based per-segment confidence, rolling centroid separability curve |
 | `prosodic_extractor.py` | Pitch (F0), energy, ZCR, jitter, shimmer, pause ratio — used by acoustic emotion pipeline |
-| `dashboard_server.py` | Dash server hosting the full SVAR dashboard (port 8050) |
 
 ---
 
@@ -56,9 +55,6 @@ pyannote runs on GPU when available. The pipeline explicitly frees GPU memory af
 ## Running
 
 ```bash
-# Dashboard (all-in-one)
-python3 diarization/dashboard_server.py
-
 # Diarization only
 python -m diarization.pipeline
 
