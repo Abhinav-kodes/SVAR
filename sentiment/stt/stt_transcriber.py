@@ -64,6 +64,20 @@ def _build_vad_chunks(audio_int16: np.ndarray, sr: int) -> List[Tuple[bytes, flo
     return chunks
 
 
+def _select_chunks(audio_int16: np.ndarray, sr: int) -> List[Tuple[bytes, float]]:
+    """Choose STT chunks: VAD-gated by default, full audio when STT_VAD_DISABLED=1."""
+    if os.environ.get("STT_VAD_DISABLED", "").lower() in ("1", "true", "yes"):
+        chunk_samples = CHUNK_SECONDS * sr
+        chunks = []
+        for i in range(0, len(audio_int16), chunk_samples):
+            chunk = audio_int16[i : i + chunk_samples]
+            if len(chunk) < sr:
+                break
+            chunks.append((chunk.tobytes(), i / sr))
+        return chunks
+    return _build_vad_chunks(audio_int16, sr)
+
+
 class SpeechToTextTranscriber:
     """
     Google Cloud Speech-to-Text V2 with Chirp 3 model.
@@ -149,13 +163,7 @@ class SpeechToTextTranscriber:
             ),
         )
 
-        chunk_samples = CHUNK_SECONDS * sr
-        chunks = []
-        for i in range(0, len(audio_int16), chunk_samples):
-            chunk = audio_int16[i : i + chunk_samples]
-            if len(chunk) < sr:
-                break
-            chunks.append((chunk.tobytes(), i / sr))
+        chunks = _select_chunks(audio_int16, sr)
 
         if not chunks:
             return None

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from sentiment.stt.stt_transcriber import _build_vad_chunks
+from sentiment.stt.stt_transcriber import _build_vad_chunks, _select_chunks
 
 SR = 16000
 
@@ -81,3 +81,35 @@ def test_vad_chunks_drop_trailing_subchunk_under_1s():
 def test_vad_chunks_all_silence():
     audio_int16 = np.zeros(int(4.0 * SR), dtype=np.int16)
     assert _build_vad_chunks(audio_int16, SR) == []
+
+
+def test_select_chunks_vad_default(monkeypatch):
+    audio = np.concatenate([
+        np.zeros(int(1.0 * SR), dtype=np.float32),
+        tone(1.0),
+        np.zeros(int(1.0 * SR), dtype=np.float32),
+        tone(1.0),
+    ])
+    audio_int16 = np.clip(audio * 32767, -32768, 32767).astype(np.int16)
+
+    chunks = _select_chunks(audio_int16, SR)
+
+    assert len(chunks) == 2
+    assert chunks[0][1] == pytest.approx(0.7, abs=0.05)
+
+
+def test_select_chunks_full_audio_when_disabled(monkeypatch):
+    monkeypatch.setenv("STT_VAD_DISABLED", "1")
+    audio = np.concatenate([
+        np.zeros(int(1.0 * SR), dtype=np.float32),
+        tone(1.0),
+        np.zeros(int(1.0 * SR), dtype=np.float32),
+        tone(1.0),
+    ])
+    audio_int16 = np.clip(audio * 32767, -32768, 32767).astype(np.int16)
+
+    chunks = _select_chunks(audio_int16, SR)
+
+    assert len(chunks) == 1
+    assert chunks[0][1] == 0.0
+    assert len(chunks[0][0]) // 2 == 4 * SR
