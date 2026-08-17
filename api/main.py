@@ -1,7 +1,10 @@
+import asyncio
+import json
 import os
 import urllib.parse
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket
+from starlette.websockets import WebSocketDisconnect
 from fastapi.exception_handlers import (
     http_exception_handler as _default_http_exception_handler,
 )
@@ -83,6 +86,15 @@ def _default_job_alive(filename: str) -> bool:
         return False
 
 
+def _default_subscriber(filename: str):
+    import redis
+
+    conn = redis.Redis.from_url(REDIS_URL)
+    sub = conn.pubsub()
+    sub.subscribe(f"svar:progress:{filename}")
+    return sub
+
+
 class _LazyResultsRepository:
     def __init__(self):
         self._repo = None
@@ -101,11 +113,13 @@ def create_app(
     results_repo: ResultsRepository = None,
     enqueue=None,
     job_alive=None,
+    subscriber=None,
 ) -> FastAPI:
     job_store = job_store or RedisJobStore(REDIS_URL)
     results_repo = results_repo or _LazyResultsRepository()
     enqueue = enqueue or _default_enqueue
     job_alive = job_alive or _default_job_alive
+    subscriber = subscriber or _default_subscriber
 
     app = FastAPI(title="SVAR API")
     app.state.job_store = job_store
@@ -171,6 +185,34 @@ def create_app(
         if file and results_repo.get(file) is not None:
             return {"status": "completed", "current_stage": "", "percent": 100, "stages": {}}
         return {"status": "idle", "percent": 0, "stages": {}}
+
+    @app.websocket("/ws/progress")
+    async def ws_progress(websocket: WebSocket, file: str = ""):
+        await websocket.accept()
+        snapshot = job_store.get(file)
+        if snapshot is not None:
+            await websocket.send_text(json.dumps(snapshot))
+            if snapshot["status"] in ("completed", "error"):
+                await websocket.close()
+                return
+        loop = asyncio.get_running_loop()
+        sub = subscriber(file)
+        try:
+            while True:
+                msg = await loop.run_in_executor(None, sub.get_message)
+                if msg and msg.get("type") == "message":
+                    data = msg["data"]  # already a JSON string
+                    await websocket.send_text(data)
+                    if json.loads(data)["status"] in ("completed", "error"):
+                        break
+        except WebSocketDisconnect:
+            pass
+        finally:
+            sub.close()
+            try:
+                await websocket.close()
+            except RuntimeError:
+                pass
 
     @app.post("/api/results")
     def results(req: AnalyzeRequest):
