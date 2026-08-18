@@ -207,10 +207,10 @@ Replaced `/api/progress` polling (network overhead + lag) with an event-driven p
 - **FastAPI subscribes** and pushes the update to the React dashboard over a **WebSocket** (`/ws/progress`)
 - Same pattern used by Vapi / DevRev — proves event-driven architecture skills
 
-### Phase 3 — Containerization & Deployment
-- `Dockerfile` for the **API** and a separate one for the **worker**
-- `docker-compose.yml` spinning up: ① FastAPI API server ② Python pipeline worker ③ Redis ④ PostgreSQL
-- Clone → `docker-compose up` → entire stack running locally in ~30 seconds
+### Phase 3 — Containerization & Deployment ✅ COMPLETE
+- Single multi-stage `Dockerfile` builds the dashboard and the Python app (one image, two services)
+- `compose.yml` spinning up: ① FastAPI API server ② Python pipeline worker (GPU) ③ Redis ④ PostgreSQL
+- Clone → `cp .env.example .env` (add `HF_TOKEN`) → `docker compose up` → entire stack running
 - Removes the friction of manual "requires GCP billing / hf auth login" setup
 
 ### Phase 4 — Observability & Fault Tolerance
@@ -237,7 +237,7 @@ What happens when Gemini rate-limits or GCP STT fails? Today the pipeline would 
 | Phase 1: FastAPI + Redis Queue + Postgres | ✅ Complete | async FastAPI API, RQ job queue, worker processes, Postgres persistence |
 | STT Cost Optimization | 🟢 100% | ✅ VAD-gated chunks (`STT_VAD_DISABLED=1` escape hatch), ✅ disk transcript cache |
 | Phase 2: WebSockets (Pub/Sub) | 🟢 100% | Redis Pub/Sub → FastAPI → React push updates |
-| Phase 3: Docker Compose | 🔴 0% | API + worker Dockerfiles, compose stack |
+| Phase 3: Docker Compose | 🟢 100% | one image, api+worker services, compose stack |
 | Phase 4: Observability + Fault Tolerance | 🔴 0% | tenacity retries, Prometheus metrics |
 
 ### Remaining Work (priority order)
@@ -245,7 +245,7 @@ What happens when Gemini rate-limits or GCP STT fails? Today the pipeline would 
 2. ~~VAD-gated STT chunks~~ ✅ **Complete** — `_select_chunks` sends only speech regions to Chirp 3; disable with `STT_VAD_DISABLED=1`
 3. ~~STT cost: disk transcript cache~~ ✅ **Complete** — `data/transcripts/<sha1>-<lang>.json` keyed by source-file sha1, 30-day TTL, config fingerprint invalidation; `SVAR_TRANSCRIPT_CACHE_DIR` overrides location
 4. ~~Phase 2~~ ✅ **Complete** — WebSocket real-time updates: worker publishes snapshots to Redis Pub/Sub (`svar:progress:<filename>`), FastAPI pushes them over `/ws/progress`, dashboard renders live (no more 1.5s polling)
-5. **Phase 3** — Docker Compose deployment
+5. ~~Phase 3~~ ✅ **Complete** — Docker Compose deployment: multi-stage Dockerfile (dashboard build + Python image), `compose.yml` with api/worker/redis/postgres, GPU worker, HF model volume; `docker compose up` runs the stack
 6. **Phase 4** — tenacity retries + Prometheus `/metrics`
 
 ---

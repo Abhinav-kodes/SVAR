@@ -307,3 +307,13 @@ Expected: **91 passed, 3 skipped, 4 failed** — unchanged from the Phase 2 base
 git add Roadmap.md README.md
 git commit -m "docs: mark Phase 3 docker compose complete"
 ```
+## Deviations recorded during execution
+
+- **Docker build validation:** `docker build --check` is unavailable (Docker 29.1.3 Ubuntu package has no buildx plugin). Validated by building the dashboard stage only (`--target dashboard-build`).
+- **App-code fixes (plan assumed none needed):**
+  1. `PostgresResultsRepository` / `RedisJobStore` ignored `SVAR_DATABASE_URL` / `SVAR_REDIS_URL` — both hardcoded `localhost`. Added `_default_url()` reading the env vars, defaulting to the localhost URLs. Commit `bf6cdc9`. This is what makes the compose services reach postgres/redis at all.
+  2. RQ 2.11 rejects `:` / `.` in job IDs, so `_rq_job_id("sample_audio.mp3")` = `svar:sample_audio.mp3` failed on enqueue. Sanitized to `svar-sample_audio_mp3` via regex. Commit `afe4460`.
+  3. cu128 torch wheels need CUDA 12 runtime libs absent from `python:3.11-slim` (`libcudart.so.12` OSError at diarize). Dockerfile installs `nvidia-cuda-runtime-cu12 nvidia-cudnn-cu12 nvidia-cublas-cu12 nvidia-cufft-cu12 nvidia-curand-cu12 nvidia-cusolver-cu12 nvidia-cusparse-cu12`. Commit `d338e7a`.
+  4. Unpinned torch resolved to a CUDA-13 build from PyPI while torchaudio came from the cu128 index → "compiled with different CUDA versions" RuntimeError. Pinned `torch==2.11.0+cu128`, `torchaudio==2.11.0+cu128`, `torchvision==0.26.0+cu128` in requirements.txt (matches the working venv). Commit `0f0c4d1`.
+  5. `google-genai` is a runtime dependency (Gemini LLM stages) that was never in requirements.txt — container ImportError at stt. Added to requirements.txt. Commit `807d0ea`. Because the pip layer was rebuilt anyway, all five fixes are baked into the shipped image.
+- **Verification:** first full pipeline run in the stack completed end-to-end (sample_audio.mp3: 71 segments, qa F, transcript cache `<sha1>-hi.json` written to the host `data/transcripts/`, `docker compose logs worker` clean apart from pre-fix lines). Result survives container recreation (pgdata volume).
