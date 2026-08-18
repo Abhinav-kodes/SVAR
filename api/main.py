@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from api.config import DASHBOARD_DIR, REDIS_URL, SAMPLE_CALLS_DIR
 from api.schemas import AnalyzeRequest
 from pipeline.job_store import JobStore, RedisJobStore
+from pipeline.progress_pubsub import RedisProgressPublisher
 from pipeline.results_repo import PostgresResultsRepository, ResultsRepository
 from pipeline.runner import _stage_results
 
@@ -116,12 +117,14 @@ def create_app(
     enqueue=None,
     job_alive=None,
     subscriber=None,
+    publisher=None,
 ) -> FastAPI:
     job_store = job_store or RedisJobStore(REDIS_URL)
     results_repo = results_repo or _LazyResultsRepository()
     enqueue = enqueue or _default_enqueue
     job_alive = job_alive or _default_job_alive
     subscriber = subscriber or _default_subscriber
+    publisher = publisher or RedisProgressPublisher(REDIS_URL)
 
     app = FastAPI(title="SVAR API")
     app.state.job_store = job_store
@@ -164,6 +167,7 @@ def create_app(
         if results_repo.get(req.filename) is not None:
             job_store.create(req.filename)
             job_store.finish(req.filename)
+            publisher.publish(req.filename, job_store.get(req.filename))
             return {"status": "completed", "message": "Already analyzed"}
         p = job_store.get(req.filename)
         if p and p["status"] == "running" and job_alive(req.filename):

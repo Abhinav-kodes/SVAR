@@ -89,3 +89,54 @@ def test_ws_client_disconnect_closes_subscriber():
             pass  # nothing is sent (no snapshot, empty queue); just connect and disconnect
 
     assert sub.closed
+
+class FakePublisher:
+    def __init__(self):
+        self.published = []
+
+    def publish(self, filename, progress):
+        self.published.append((filename, dict(progress)))
+
+
+def make_app_with_publisher(pub, job_store=None, results_repo=None):
+    return create_app(
+        job_store=job_store or InMemoryJobStore(),
+        results_repo=results_repo or InMemoryResultsRepository(),
+        enqueue=lambda f: None,
+        job_alive=lambda f: True,
+        subscriber=lambda filename: FakeSubscription(),
+        publisher=pub,
+    )
+
+
+def test_already_analyzed_publishes_completed_snapshot(monkeypatch, tmp_path):
+    import os
+    from api import main as api_main
+    os.makedirs(tmp_path / "data" / "sample_calls", exist_ok=True)
+    monkeypatch.setattr(api_main, "SAMPLE_CALLS_DIR", str(tmp_path / "data" / "sample_calls"))
+    (tmp_path / "data" / "sample_calls" / "a.mp3").write_bytes(b"x")
+    job_store = InMemoryJobStore()
+    results_repo = InMemoryResultsRepository()
+    results_repo.save("a.mp3", {"qa": {"score": 70}})
+    pub = FakePublisher()
+    app = make_app_with_publisher(pub, job_store=job_store, results_repo=results_repo)
+
+    with TestClient(app) as client:
+        res = client.post("/api/analyze", json={"filename": "a.mp3"})
+        assert res.status_code == 200
+        assert res.json()["status"] == "completed"
+
+    assert len(pub.published) == 1
+    filename, snapshot = pub.published[0]
+    assert filename == "a.mp3"
+    assert snapshot["status"] == "completed"
+
+
+def test_fresh_analyze_does_not_publish():
+    pub = FakePublisher()
+    app = make_app_with_publisher(pub)
+
+    with TestClient(app) as client:
+        client.post("/api/analyze", json={"filename": "a.mp3"})
+
+    assert pub.published == []
