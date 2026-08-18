@@ -107,6 +107,7 @@ export const App: React.FC = () => {
     setActiveTab('summary');
     setCurrentTime(0);
     setSeekTime(null);
+    fetchAllResults(filename);
   };
 
   // Start analysis
@@ -118,11 +119,16 @@ export const App: React.FC = () => {
     setActiveTab('summary');
 
     try {
-      await fetch('/api/analyze', {
+      const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename: activeFile }),
       });
+      const body = await res.json();
+      if (body.status === 'completed') {
+        setIsAnalyzing(false);
+        fetchAllResults(activeFile);
+      }
     } catch (err) {
       console.error('Failed to trigger analysis:', err);
       setIsAnalyzing(false);
